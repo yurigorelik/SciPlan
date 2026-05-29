@@ -4,27 +4,49 @@ import { STEPS } from "@/lib/steps";
 export default function Home() {
   return (
     <div>
-      <section className="mb-12 max-w-3xl">
-        <h1 className="text-4xl font-bold tracking-tight text-slate-900">
-          Plan your research, one step at a time.
-        </h1>
-        <p className="mt-4 text-lg text-slate-600">
-          SciPlan walks students through designing a sound study — from the
-          research question to the statistical analysis plan — with AI guidance
-          and built-in calculators at each step.
-        </p>
-        <div className="mt-6 flex gap-3">
-          <Link
-            href="/plan"
-            className="rounded-lg bg-brand-600 px-5 py-2.5 font-medium text-white hover:bg-brand-700"
-          >
-            Start a plan
-          </Link>
+      <section className="mb-12 flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
+        <div className="max-w-2xl">
+          <h1 className="text-4xl font-bold tracking-tight text-slate-900">
+            Plan your research, one step at a time.
+          </h1>
+          <p className="mt-4 text-lg text-slate-600">
+            SciPlan walks students through designing a sound study — from the
+            research question to the statistical analysis plan — with AI guidance
+            and built-in calculators at each step.
+          </p>
+          <div className="mt-6 flex gap-3">
+            <Link
+              href="/plan"
+              className="rounded-lg bg-brand-600 px-5 py-2.5 font-medium text-white hover:bg-brand-700"
+            >
+              Start a plan
+            </Link>
+            <a
+              href="#how"
+              className="rounded-lg border border-slate-300 px-5 py-2.5 font-medium text-slate-700 hover:bg-white"
+            >
+              How it works
+            </a>
+          </div>
+        </div>
+
+        <div className="flex w-full max-w-xs shrink-0 flex-col items-center rounded-xl border border-slate-200 bg-white p-5 text-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/qr-sciplan.svg"
+            alt="QR code linking to the SciPlan website"
+            className="h-40 w-40"
+            width={160}
+            height={160}
+          />
+          <p className="mt-3 text-sm font-medium text-slate-700">
+            Scan to open on your phone
+          </p>
           <a
-            href="#how"
-            className="rounded-lg border border-slate-300 px-5 py-2.5 font-medium text-slate-700 hover:bg-white"
+            href="https://sciplan-production.up.railway.app/"
+            className="mt-1 break-all text-xs text-brand-700 hover:underline"
           >
-            How it works
+            sciplan-production.up.railway.app
           </a>
         </div>
       </section>
