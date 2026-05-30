@@ -7,13 +7,80 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// A research plan, identified by a shareable slug. No user accounts yet —
-// anyone with the link can view/continue the plan.
+enum Role {
+  USER
+  ADMIN
+}
+
+// An application user. Created via OAuth (Google/Microsoft) or the seeded
+// credentials admin. Sign-in is required to use the site.
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  // Hashed password — only set for credentials-based logins (e.g. the admin).
+  passwordHash  String?
+  role          Role      @default(USER)
+  // Blocked users may still sign in and view their existing plans, but cannot
+  // create or edit plans.
+  blocked       Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+
+  accounts Account[]
+  sessions Session[]
+  plans    Plan[]
+}
+
+// NextAuth/Auth.js — linked OAuth provider account.
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+// NextAuth/Auth.js — database session (kept for adapter compatibility).
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// NextAuth/Auth.js — email verification tokens.
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// A research plan owned by a user. The full wizard state is stored as JSON.
 model Plan {
   id        String   @id @default(cuid())
   title     String   @default("Untitled research plan")
-  // The full wizard state as JSON: answers per step, calculations, AI notes.
+  // The full wizard state as JSON: answers per step, calculations, AI summary.
   data      Json
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }

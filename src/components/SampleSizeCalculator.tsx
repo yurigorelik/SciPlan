@@ -12,9 +12,25 @@ interface Result {
 const CALC_LABELS: Record<CalcType, string> = {
   compareMeans: "Compare two means (t-test)",
   compareProportions: "Compare two proportions",
+  pairedMeans: "Paired means (within-subject)",
+  oneMean: "One mean vs a reference",
+  oneProportion: "One proportion vs a reference",
+  correlation: "Correlation (r ≠ 0)",
+  anova: "ANOVA (>2 groups)",
   meanPrecision: "Estimate a mean (precision)",
   proportionPrecision: "Estimate a proportion (precision)",
 };
+
+// Which calculation types use the alpha/power hypothesis-test inputs.
+const TEST_TYPES: CalcType[] = [
+  "compareMeans",
+  "compareProportions",
+  "pairedMeans",
+  "oneMean",
+  "oneProportion",
+  "correlation",
+  "anova",
+];
 
 function Field({
   label,
@@ -121,6 +137,66 @@ export default function SampleSizeCalculator({
             <Field label="Proportion 2 (0-1)" value={v.p2 || ""} onChange={set("p2")} />
           </>
         )}
+        {type === "pairedMeans" && (
+          <>
+            <Field
+              label="Mean within-pair difference"
+              value={v.meanDiff || ""}
+              onChange={set("meanDiff")}
+            />
+            <Field
+              label="SD of differences"
+              value={v.sdDiff || ""}
+              onChange={set("sdDiff")}
+            />
+          </>
+        )}
+        {type === "oneMean" && (
+          <>
+            <Field label="Expected mean" value={v.mean || ""} onChange={set("mean")} />
+            <Field
+              label="Reference value"
+              value={v.reference || ""}
+              onChange={set("reference")}
+            />
+            <Field label="Assumed SD" value={v.sd || ""} onChange={set("sd")} />
+          </>
+        )}
+        {type === "oneProportion" && (
+          <>
+            <Field
+              label="Expected proportion (0-1)"
+              value={v.p || ""}
+              onChange={set("p")}
+            />
+            <Field
+              label="Reference proportion (0-1)"
+              value={v.reference || ""}
+              onChange={set("reference")}
+            />
+          </>
+        )}
+        {type === "correlation" && (
+          <Field
+            label="Expected correlation r (-1 to 1)"
+            value={v.r || ""}
+            onChange={set("r")}
+          />
+        )}
+        {type === "anova" && (
+          <>
+            <Field
+              label="Number of groups"
+              value={v.groups || ""}
+              onChange={set("groups")}
+            />
+            <Field
+              label="Effect size (Cohen's f)"
+              value={v.effectF || ""}
+              onChange={set("effectF")}
+            />
+          </>
+        )}
         {type === "meanPrecision" && (
           <>
             <Field label="Assumed SD" value={v.sd || ""} onChange={set("sd")} />
@@ -152,7 +228,7 @@ export default function SampleSizeCalculator({
           </>
         )}
 
-        {(type === "compareMeans" || type === "compareProportions") && (
+        {TEST_TYPES.includes(type) && (
           <>
             <Field label="Alpha" value={v.alpha || ""} onChange={set("alpha")} />
             <Field label="Power" value={v.power || ""} onChange={set("power")} />

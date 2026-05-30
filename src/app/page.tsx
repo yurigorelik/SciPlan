@@ -1,54 +1,73 @@
 import Link from "next/link";
 import { STEPS } from "@/lib/steps";
+import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const session = await auth();
+  const user = session!.user; // middleware guarantees sign-in
+
+  let plans: { id: string; title: string; updatedAt: Date }[] = [];
+  try {
+    plans = await prisma.plan.findMany({
+      where: { userId: user.id },
+      orderBy: { updatedAt: "desc" },
+      select: { id: true, title: true, updatedAt: true },
+    });
+  } catch {
+    // Database not configured — show an empty list.
+  }
+
   return (
     <div>
-      <section className="mb-12 flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
-        <div className="max-w-2xl">
-          <h1 className="text-4xl font-bold tracking-tight text-slate-900">
-            Plan your research, one step at a time.
-          </h1>
-          <p className="mt-4 text-lg text-slate-600">
-            SciPlan walks students through designing a sound study — from the
-            research question to the statistical analysis plan — with AI guidance
-            and built-in calculators at each step.
-          </p>
-          <div className="mt-6 flex gap-3">
+      <section className="mb-10 flex flex-col gap-2">
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+          Welcome{user.name ? `, ${user.name}` : ""}.
+        </h1>
+        <p className="text-slate-600">
+          {user.blocked
+            ? "Your account can view existing plans but cannot create or edit new ones."
+            : "Plan a sound study step by step, then get a final AI review that finalizes it."}
+        </p>
+        {!user.blocked && (
+          <div>
             <Link
               href="/plan"
-              className="rounded-lg bg-brand-600 px-5 py-2.5 font-medium text-white hover:bg-brand-700"
+              className="mt-3 inline-block rounded-lg bg-brand-600 px-5 py-2.5 font-medium text-white hover:bg-brand-700"
             >
-              Start a plan
+              Start a new plan
             </Link>
-            <a
-              href="#how"
-              className="rounded-lg border border-slate-300 px-5 py-2.5 font-medium text-slate-700 hover:bg-white"
-            >
-              How it works
-            </a>
           </div>
-        </div>
+        )}
+      </section>
 
-        <div className="flex w-full max-w-xs shrink-0 flex-col items-center rounded-xl border border-slate-200 bg-white p-5 text-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/qr-sciplan.svg"
-            alt="QR code linking to the SciPlan website"
-            className="h-40 w-40"
-            width={160}
-            height={160}
-          />
-          <p className="mt-3 text-sm font-medium text-slate-700">
-            Scan to open on your phone
+      <section className="mb-12">
+        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">
+          My plans
+        </h2>
+        {plans.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
+            You don&apos;t have any plans yet.
           </p>
-          <a
-            href="https://sciplan-production.up.railway.app/"
-            className="mt-1 break-all text-xs text-brand-700 hover:underline"
-          >
-            sciplan-production.up.railway.app
-          </a>
-        </div>
+        ) : (
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {plans.map((p) => (
+              <li key={p.id}>
+                <Link
+                  href={`/plan/${p.id}`}
+                  className="block rounded-xl border border-slate-200 bg-white p-4 hover:border-brand-400"
+                >
+                  <p className="font-medium text-slate-900">{p.title}</p>
+                  <p className="mt-1 text-xs text-slate-400">
+                    Updated {new Date(p.updatedAt).toLocaleDateString()}
+                  </p>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section id="how">
