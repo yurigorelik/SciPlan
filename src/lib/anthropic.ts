@@ -46,15 +46,18 @@ Check especially for internal consistency:
 - Does the sample-size goal match the design, outcome type, and chosen test?
 - Are alpha, power, sidedness, allocation, and dropout sensible and mutually consistent?
 - Are the named confounders and the analysis adjustment strategy aligned?
-- Is the design feasible given the recruitment rate, timeline, and target N?
+- Is the plan consistent with the literature the student provided (links, abstracts, full text)? Use that evidence to sanity-check the effect-size assumptions, design, and gap, and reference it where relevant.
 
-Output in Markdown with exactly these sections:
+Write in clean, well-formatted GitHub-flavored Markdown. Use prose and bullet lists; avoid wide tables (they read poorly on screen) — prefer short bullets like "**Design:** parallel-group RCT". Output exactly these sections:
 
 ## Finalized study
-A clean, corrected description of the study, integrating any fixes.
+A clear, corrected description of the study, integrating any fixes. Cover the question, design, variables, sample size, and analysis as readable prose with bolded labels.
 
 ## Corrections made
 A bulleted list of every change you made and *why*. If a choice was wrong, name the original choice and the corrected one. If nothing needed changing, say so.
+
+## Evidence base
+Brief notes on how the cited literature supports (or challenges) the plan. If no literature was provided, say so and note that grounding the assumptions in references would strengthen the study.
 
 ## Summary
 A concise plain-language summary a student could put at the top of a protocol: the question, design, primary outcome, target sample size with key assumptions, and the primary analysis.

@@ -1,17 +1,18 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   STEPS,
   REVIEW_STEP,
   PlanData,
   emptyPlan,
-  buildPlanText,
   type FieldDef,
   type FieldValue,
+  type FinalizeStatus,
 } from "@/lib/steps";
 import SampleSizeCalculator from "./SampleSizeCalculator";
+import Markdown from "./Markdown";
 
 const TABS = [...STEPS, REVIEW_STEP];
 
@@ -32,8 +33,14 @@ export default function Wizard({
   const [current, setCurrent] = useState(0);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
-  const [finalizing, setFinalizing] = useState(false);
   const [output, setOutput] = useState(initialData?.summary || "");
+  const [status, setStatus] = useState<FinalizeStatus>(
+    initialData?.finalizeStatus ?? (initialData?.summary ? "done" : "idle"),
+  );
+  const [finalizeError, setFinalizeError] = useState(
+    initialData?.finalizeError || "",
+  );
+  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isReview = current === STEPS.length;
   const step = isReview ? null : STEPS[current];
@@ -51,13 +58,10 @@ export default function Wizard({
     [],
   );
 
-  const planText = useMemo(() => buildPlanText(data), [data]);
-
-  async function save(extra?: Partial<PlanData>) {
-    const payload = { ...data, ...extra };
-    setSaving(true);
-    setSaveMsg(null);
-    try {
+  // Save the plan; returns the plan id (creating it on first save).
+  const persist = useCallback(
+    async (extra?: Partial<PlanData>): Promise<string> => {
+      const payload = { ...data, ...extra };
       if (planId) {
         const res = await fetch(`/api/plans/${planId}`, {
           method: "PUT",
@@ -65,19 +69,28 @@ export default function Wizard({
           body: JSON.stringify({ title: payload.title, data: payload }),
         });
         if (!res.ok) throw new Error((await res.json()).error);
-        setSaveMsg("Saved.");
-      } else {
-        const res = await fetch("/api/plans", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: payload.title, data: payload }),
-        });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error);
-        setPlanId(json.id);
-        router.replace(`/plan/${json.id}`);
-        setSaveMsg("Saved. This plan now has a shareable link.");
+        return planId;
       }
+      const res = await fetch("/api/plans", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: payload.title, data: payload }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      setPlanId(json.id);
+      router.replace(`/plan/${json.id}`);
+      return json.id as string;
+    },
+    [data, planId, router],
+  );
+
+  async function save() {
+    setSaving(true);
+    setSaveMsg(null);
+    try {
+      await persist();
+      setSaveMsg(planId ? "Saved." : "Saved. This plan now has a shareable link.");
     } catch (e) {
       setSaveMsg(e instanceof Error ? e.message : "Could not save.");
     } finally {
@@ -85,36 +98,59 @@ export default function Wizard({
     }
   }
 
-  // Submit the whole plan to the AI for review/finalization, then save it.
+  // Poll the plan until the background finalization finishes.
+  const poll = useCallback((id: string) => {
+    if (pollRef.current) clearTimeout(pollRef.current);
+    const tick = async () => {
+      try {
+        const res = await fetch(`/api/plans/${id}`, { cache: "no-store" });
+        if (!res.ok) return;
+        const plan = await res.json();
+        const d = (plan.data as PlanData) ?? {};
+        if (d.finalizeStatus === "done") {
+          setStatus("done");
+          setOutput(d.summary || "");
+          setData((p) => ({ ...p, ...d }));
+          return; // stop polling
+        }
+        if (d.finalizeStatus === "error") {
+          setStatus("error");
+          setFinalizeError(d.finalizeError || "The AI review failed.");
+          return;
+        }
+      } catch {
+        // transient error — keep polling
+      }
+      pollRef.current = setTimeout(tick, 4000);
+    };
+    pollRef.current = setTimeout(tick, 3000);
+  }, []);
+
+  // If the plan is already being finalized (e.g. the user came back), resume
+  // polling. Clean up on unmount.
+  useEffect(() => {
+    if (planId && status === "processing") poll(planId);
+    return () => {
+      if (pollRef.current) clearTimeout(pollRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Submit the plan for background AI finalization.
   async function finalize() {
-    setFinalizing(true);
-    setOutput("");
-    let acc = "";
+    setStatus("processing");
+    setFinalizeError("");
     try {
-      const res = await fetch("/api/finalize", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planText }),
-      });
-      if (!res.ok || !res.body) {
-        setOutput(await res.text());
-        return;
+      const id = await persist({ finalizeStatus: "processing" });
+      const res = await fetch(`/api/plans/${id}/finalize`, { method: "POST" });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || "Could not start the AI review.");
       }
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        acc += decoder.decode(value, { stream: true });
-        setOutput(acc);
-      }
-      const finalizedAt = new Date().toISOString();
-      setData((p) => ({ ...p, summary: acc, finalizedAt }));
-      await save({ summary: acc, finalizedAt });
+      poll(id);
     } catch (e) {
-      setOutput(e instanceof Error ? e.message : "Something went wrong.");
-    } finally {
-      setFinalizing(false);
+      setStatus("error");
+      setFinalizeError(e instanceof Error ? e.message : "Something went wrong.");
     }
   }
 
@@ -180,7 +216,8 @@ export default function Wizard({
         <ReviewPanel
           summary={output}
           finalizedAt={data.finalizedAt}
-          finalizing={finalizing}
+          status={status}
+          error={finalizeError}
           readOnly={readOnly}
           onFinalize={finalize}
         />
@@ -348,16 +385,19 @@ function FieldInput({
 function ReviewPanel({
   summary,
   finalizedAt,
-  finalizing,
+  status,
+  error,
   readOnly,
   onFinalize,
 }: {
   summary: string;
   finalizedAt?: string;
-  finalizing: boolean;
+  status: FinalizeStatus;
+  error: string;
   readOnly: boolean;
   onFinalize: () => void;
 }) {
+  const processing = status === "processing";
   return (
     <div className="max-w-3xl">
       <h2 className="text-xl font-semibold text-slate-900">{REVIEW_STEP.title}</h2>
@@ -366,31 +406,47 @@ function ReviewPanel({
       {!readOnly && (
         <button
           onClick={onFinalize}
-          disabled={finalizing}
-          className="mt-5 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+          disabled={processing}
+          className="mt-5 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
         >
-          {finalizing
-            ? "Reviewing your plan…"
+          {processing && (
+            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+          )}
+          {processing
+            ? "Reviewing in the background…"
             : summary
               ? "Re-run AI review"
               : "Submit for AI review & finalize"}
         </button>
       )}
 
-      {finalizedAt && !finalizing && (
-        <p className="mt-2 text-xs text-slate-400">
+      {processing && (
+        <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          Your plan is being finalized by the AI. This runs in the background —
+          you can leave this page and it will appear in <strong>My plans</strong>{" "}
+          when it&apos;s ready. We&apos;ll update this page automatically too.
+        </p>
+      )}
+
+      {status === "error" && (
+        <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error || "The AI review failed. Please try again."}
+        </p>
+      )}
+
+      {finalizedAt && status === "done" && (
+        <p className="mt-3 text-xs text-slate-400">
           Last finalized {new Date(finalizedAt).toLocaleString()}.
         </p>
       )}
 
       {summary ? (
-        <div className="mt-5 rounded-xl border border-slate-200 bg-white p-5">
-          <div className="prose-ai whitespace-pre-wrap text-sm text-slate-700">
-            {summary}
-          </div>
+        <div className="mt-5 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <Markdown>{summary}</Markdown>
         </div>
       ) : (
-        !readOnly && (
+        !readOnly &&
+        !processing && (
           <p className="mt-5 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-500">
             When you submit, SciPlan sends your selected options and notes to the
             AI. You don&apos;t chat with the AI directly — it reviews your inputs,
