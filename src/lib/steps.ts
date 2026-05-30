@@ -111,6 +111,55 @@ export const STEPS: StepDef[] = [
     ],
   },
   {
+    id: "literature",
+    title: "Literature search",
+    short: "Literature",
+    blurb:
+      "Ground your study in what's already known. Record where you searched and add the key papers — paste links/DOIs and any abstracts or full text you want the AI to take into account when finalizing.",
+    fields: [
+      {
+        key: "databases",
+        label: "Where did you search?",
+        type: "multiselect",
+        options: [
+          "PubMed / MEDLINE",
+          "Embase",
+          "Scopus",
+          "Web of Science",
+          "Google Scholar",
+          "Cochrane Library",
+          "PsycINFO",
+          "CINAHL",
+          "Preprint servers (bioRxiv/medRxiv)",
+          "Other",
+        ],
+      },
+      {
+        key: "links",
+        label: "Key papers — links / DOIs (one per line)",
+        type: "textarea",
+        rows: 4,
+        placeholder:
+          "https://doi.org/10.xxxx/xxxxx\nhttps://pubmed.ncbi.nlm.nih.gov/00000000/",
+      },
+      {
+        key: "evidence",
+        label: "Abstracts / full text (paste here)",
+        type: "textarea",
+        rows: 8,
+        placeholder:
+          "Paste the abstracts or full text of the most relevant papers. The AI uses this when reviewing and finalizing your study.",
+      },
+      {
+        key: "gap",
+        label: "What gap does your study address? (brief)",
+        type: "textarea",
+        rows: 2,
+        placeholder: "What is still unknown or unresolved that your study tackles?",
+      },
+    ],
+  },
+  {
     id: "design",
     title: "Study design",
     short: "Design",
@@ -360,89 +409,6 @@ export const STEPS: StepDef[] = [
     ],
   },
   {
-    id: "resources",
-    title: "Resources & feasibility",
-    short: "Resources",
-    blurb:
-      "Translate the plan into time, money, people, and approvals. A statistically sound but infeasible study will not happen.",
-    fields: [
-      {
-        key: "recruitmentRate",
-        label: "Expected recruitment / data rate",
-        type: "select",
-        options: [
-          "Fewer than 5 per month",
-          "5–20 per month",
-          "20–50 per month",
-          "50–100 per month",
-          "More than 100 per month",
-          "Using existing data (not applicable)",
-        ],
-      },
-      {
-        key: "timeline",
-        label: "Overall timeline",
-        type: "select",
-        options: [
-          "Less than 3 months",
-          "3–6 months",
-          "6–12 months",
-          "12–24 months",
-          "More than 24 months",
-        ],
-      },
-      {
-        key: "budget",
-        label: "Budget band",
-        type: "select",
-        options: [
-          "None / minimal",
-          "Under $1,000",
-          "$1,000–$10,000",
-          "$10,000–$50,000",
-          "More than $50,000",
-        ],
-      },
-      {
-        key: "ethics",
-        label: "Ethics / IRB approval",
-        type: "select",
-        options: [
-          "Required — not yet obtained",
-          "Required — already obtained",
-          "Likely exempt",
-          "Not sure",
-        ],
-      },
-      {
-        key: "team",
-        label: "Team size",
-        type: "select",
-        options: ["Solo", "2–3 people", "4–6 people", "More than 6 people"],
-      },
-      {
-        key: "dataManagement",
-        label: "Data capture / management",
-        type: "select",
-        options: [
-          "Paper then spreadsheet",
-          "Spreadsheet (Excel / Sheets)",
-          "REDCap / electronic data capture",
-          "Relational database",
-          "Statistical software files",
-          "Other",
-        ],
-      },
-      {
-        key: "risks",
-        label: "Main feasibility risks (optional)",
-        type: "textarea",
-        rows: 2,
-        placeholder: "Recruitment shortfall, equipment, access, dependencies…",
-      },
-    ],
-  },
-  {
     id: "analysis",
     title: "Statistical methods",
     short: "Analysis",
@@ -546,13 +512,18 @@ export const REVIEW_STEP = {
 
 export type FieldValue = string | string[];
 
+export type FinalizeStatus = "idle" | "processing" | "done" | "error";
+
 export type PlanData = {
   title: string;
   // stepId -> fieldKey -> value (string or, for multiselect, string[])
   answers: Record<string, Record<string, FieldValue>>;
-  // The AI-finalized study + summary, produced at the review step.
+  // The AI-finalized study + summary, produced in the background at review.
   summary?: string;
   finalizedAt?: string;
+  // Tracks the background finalization job.
+  finalizeStatus?: FinalizeStatus;
+  finalizeError?: string;
 };
 
 export function emptyPlan(): PlanData {

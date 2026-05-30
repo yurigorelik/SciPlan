@@ -9,16 +9,28 @@ export default async function Home() {
   const session = await auth();
   const user = session!.user; // middleware guarantees sign-in
 
-  let plans: { id: string; title: string; updatedAt: Date }[] = [];
+  let rows: { id: string; title: string; updatedAt: Date; data: unknown }[] = [];
   try {
-    plans = await prisma.plan.findMany({
+    rows = await prisma.plan.findMany({
       where: { userId: user.id },
       orderBy: { updatedAt: "desc" },
-      select: { id: true, title: true, updatedAt: true },
+      select: { id: true, title: true, updatedAt: true, data: true },
     });
   } catch {
     // Database not configured — show an empty list.
   }
+
+  const plans = rows.map((p) => {
+    const d = (p.data ?? {}) as { finalizeStatus?: string; summary?: string };
+    const finalizeStatus =
+      d.finalizeStatus ?? (d.summary ? "done" : undefined);
+    return {
+      id: p.id,
+      title: p.title,
+      updatedAt: p.updatedAt,
+      finalizeStatus,
+    };
+  });
 
   return (
     <div>
@@ -60,9 +72,27 @@ export default async function Home() {
                   className="block rounded-xl border border-slate-200 bg-white p-4 hover:border-brand-400"
                 >
                   <p className="font-medium text-slate-900">{p.title}</p>
-                  <p className="mt-1 text-xs text-slate-400">
-                    Updated {new Date(p.updatedAt).toLocaleDateString()}
-                  </p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <p className="text-xs text-slate-400">
+                      Updated {new Date(p.updatedAt).toLocaleDateString()}
+                    </p>
+                    {p.finalizeStatus === "processing" && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                        <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+                        Finalizing…
+                      </span>
+                    )}
+                    {p.finalizeStatus === "done" && (
+                      <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-medium text-brand-700">
+                        Finalized
+                      </span>
+                    )}
+                    {p.finalizeStatus === "error" && (
+                      <span className="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-700">
+                        Review failed
+                      </span>
+                    )}
+                  </div>
                 </Link>
               </li>
             ))}
