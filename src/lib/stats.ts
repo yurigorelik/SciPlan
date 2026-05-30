@@ -176,6 +176,156 @@ export function nProportionPrecision(i: ProportionPrecisionInput): SampleSizeRes
   };
 }
 
+export interface PairedMeansInput {
+  meanDiff: number;
+  sdDiff: number;
+  alpha: number;
+  power: number;
+  tail: Tail;
+}
+
+/** Paired means (within-subject) — one-sample t on the differences. */
+export function nPairedMeans(i: PairedMeansInput): SampleSizeResult {
+  const delta = Math.abs(i.meanDiff);
+  if (delta === 0) throw new Error("The mean difference must be non-zero.");
+  if (i.sdDiff <= 0) throw new Error("SD of differences must be positive.");
+  const za = zAlpha(i.alpha, i.tail);
+  const zb = normInv(i.power);
+  const n = Math.pow(((za + zb) * i.sdDiff) / delta, 2);
+  const nc = Math.ceil(n);
+  return {
+    perGroup: nc,
+    total: nc,
+    notes: [
+      `Effect size (dz): ${(delta / i.sdDiff).toFixed(3)}`,
+      `Mean within-pair difference: ${delta}, SD of differences: ${i.sdDiff}`,
+      `α = ${i.alpha} (${i.tail}), power = ${i.power}`,
+      `n = ${nc} pairs (each measured twice).`,
+    ],
+  };
+}
+
+export interface OneMeanInput {
+  mean: number;
+  reference: number;
+  sd: number;
+  alpha: number;
+  power: number;
+  tail: Tail;
+}
+
+/** Test a single mean against a reference value (one-sample t). */
+export function nOneMean(i: OneMeanInput): SampleSizeResult {
+  const delta = Math.abs(i.mean - i.reference);
+  if (delta === 0) throw new Error("Mean and reference must differ.");
+  if (i.sd <= 0) throw new Error("SD must be positive.");
+  const za = zAlpha(i.alpha, i.tail);
+  const zb = normInv(i.power);
+  const n = Math.pow(((za + zb) * i.sd) / delta, 2);
+  const nc = Math.ceil(n);
+  return {
+    perGroup: nc,
+    total: nc,
+    notes: [
+      `Detecting a shift of ${delta} from the reference (${i.reference}).`,
+      `Assumed SD: ${i.sd}, effect size: ${(delta / i.sd).toFixed(3)}`,
+      `α = ${i.alpha} (${i.tail}), power = ${i.power}`,
+      `n = ${nc}.`,
+    ],
+  };
+}
+
+export interface OneProportionInput {
+  p: number;
+  reference: number;
+  alpha: number;
+  power: number;
+  tail: Tail;
+}
+
+/** Test a single proportion against a reference value. */
+export function nOneProportion(i: OneProportionInput): SampleSizeResult {
+  if (i.p <= 0 || i.p >= 1 || i.reference <= 0 || i.reference >= 1)
+    throw new Error("Proportions must be between 0 and 1 (exclusive).");
+  const delta = Math.abs(i.p - i.reference);
+  if (delta === 0) throw new Error("Proportion and reference must differ.");
+  const za = zAlpha(i.alpha, i.tail);
+  const zb = normInv(i.power);
+  const n =
+    Math.pow(
+      za * Math.sqrt(i.reference * (1 - i.reference)) +
+        zb * Math.sqrt(i.p * (1 - i.p)),
+      2,
+    ) /
+    (delta * delta);
+  const nc = Math.ceil(n);
+  return {
+    perGroup: nc,
+    total: nc,
+    notes: [
+      `Expected ${i.p} vs reference ${i.reference} (difference ${delta.toFixed(3)}).`,
+      `α = ${i.alpha} (${i.tail}), power = ${i.power}`,
+      `n = ${nc}.`,
+    ],
+  };
+}
+
+export interface CorrelationInput {
+  r: number;
+  alpha: number;
+  power: number;
+  tail: Tail;
+}
+
+/** Detect a Pearson correlation different from zero (Fisher z). */
+export function nCorrelation(i: CorrelationInput): SampleSizeResult {
+  if (i.r <= -1 || i.r >= 1) throw new Error("Correlation must be in (-1, 1).");
+  if (i.r === 0) throw new Error("Expected correlation must be non-zero.");
+  const za = zAlpha(i.alpha, i.tail);
+  const zb = normInv(i.power);
+  const z = 0.5 * Math.log((1 + i.r) / (1 - i.r)); // Fisher transform
+  const n = Math.pow((za + zb) / Math.abs(z), 2) + 3;
+  const nc = Math.ceil(n);
+  return {
+    perGroup: nc,
+    total: nc,
+    notes: [
+      `Detecting a correlation of r = ${i.r} (Fisher z = ${z.toFixed(3)}).`,
+      `α = ${i.alpha} (${i.tail}), power = ${i.power}`,
+      `n = ${nc}.`,
+    ],
+  };
+}
+
+export interface AnovaInput {
+  groups: number;
+  effectF: number; // Cohen's f
+  alpha: number;
+  power: number;
+}
+
+/** One-way ANOVA across k groups (Cohen's f effect size, approximation). */
+export function nAnova(i: AnovaInput): SampleSizeResult {
+  if (i.groups < 2) throw new Error("ANOVA needs at least 2 groups.");
+  if (i.effectF <= 0) throw new Error("Effect size f must be positive.");
+  // Normal-based approximation to the noncentral F. Conservative for planning;
+  // confirm a final number with dedicated software (e.g. G*Power).
+  const za = zAlpha(i.alpha, "two-sided");
+  const zb = normInv(i.power);
+  const lambda = Math.pow(za + zb, 2);
+  const totalApprox = lambda / (i.effectF * i.effectF) + (i.groups - 1);
+  const perGroup = Math.ceil(totalApprox / i.groups);
+  return {
+    perGroup,
+    total: perGroup * i.groups,
+    notes: [
+      `${i.groups} groups, Cohen's f = ${i.effectF}.`,
+      `α = ${i.alpha} (two-sided), power = ${i.power}`,
+      `≈ ${perGroup} per group, ${perGroup * i.groups} total (planning approximation).`,
+    ],
+  };
+}
+
 /** Inflate a sample size to account for expected dropout/non-response. */
 export function inflateForDropout(n: number, dropoutRate: number): number {
   if (dropoutRate < 0 || dropoutRate >= 1)
@@ -186,5 +336,10 @@ export function inflateForDropout(n: number, dropoutRate: number): number {
 export type CalcType =
   | "compareMeans"
   | "compareProportions"
+  | "pairedMeans"
+  | "oneMean"
+  | "oneProportion"
+  | "correlation"
+  | "anova"
   | "meanPrecision"
   | "proportionPrecision";

@@ -1,4 +1,24 @@
 // Definitions for the research-planning wizard steps.
+//
+// The wizard is deliberately structured: most inputs are dropdowns (select /
+// multi-select) so students pick from sound, named options rather than writing
+// free text. A few short text fields remain for things that are inherently
+// specific (the question, variable names). After the steps, the whole plan is
+// sent to the AI once to review, correct, and finalize the study.
+
+export type FieldType = "select" | "multiselect" | "text" | "textarea";
+
+export interface FieldDef {
+  key: string;
+  label: string;
+  type: FieldType;
+  /** Options for select / multiselect fields. */
+  options?: string[];
+  placeholder?: string;
+  rows?: number;
+  /** Short helper text under the label. */
+  help?: string;
+}
 
 export interface StepDef {
   id: string;
@@ -6,10 +26,7 @@ export interface StepDef {
   short: string;
   /** What the student is working on in this step. */
   blurb: string;
-  /** Prompts/fields shown to the student. */
-  fields: { key: string; label: string; placeholder?: string; rows?: number }[];
-  /** Suggested AI assistance prompt shown as a button. */
-  aiSuggestion: string;
+  fields: FieldDef[];
 }
 
 export const STEPS: StepDef[] = [
@@ -18,180 +35,546 @@ export const STEPS: StepDef[] = [
     title: "Research question",
     short: "Question",
     blurb:
-      "Start with a focused, answerable question. A good question is specific about the population, what you are comparing or measuring, and the outcome. Frameworks like PICO (Population, Intervention/exposure, Comparison, Outcome) or FINER (Feasible, Interesting, Novel, Ethical, Relevant) help.",
+      "Frame a focused, answerable question. Pick the building blocks (PICO) and the kind of question you are asking. Keep free text to the essentials.",
     fields: [
       {
-        key: "topic",
-        label: "Topic / area of interest",
-        placeholder: "e.g. sleep and academic performance in undergraduates",
-        rows: 2,
+        key: "field",
+        label: "Field / discipline",
+        type: "select",
+        options: [
+          "Medicine / clinical",
+          "Public health / epidemiology",
+          "Psychology / behavioural",
+          "Biology / life sciences",
+          "Nursing / allied health",
+          "Education",
+          "Social sciences",
+          "Engineering / physical sciences",
+          "Other",
+        ],
+      },
+      {
+        key: "questionType",
+        label: "Type of question",
+        type: "select",
+        options: [
+          "Descriptive (what is happening?)",
+          "Associational / correlational",
+          "Causal / interventional (does X change Y?)",
+          "Predictive / prognostic",
+          "Diagnostic (test accuracy)",
+        ],
+      },
+      {
+        key: "population",
+        label: "Population (P)",
+        type: "text",
+        placeholder: "e.g. first-year undergraduates",
+      },
+      {
+        key: "intervention",
+        label: "Intervention / exposure (I)",
+        type: "text",
+        placeholder: "e.g. a 4-week sleep-hygiene program",
+      },
+      {
+        key: "comparator",
+        label: "Comparator (C)",
+        type: "text",
+        placeholder: "e.g. no intervention / usual routine",
+      },
+      {
+        key: "outcome",
+        label: "Outcome (O)",
+        type: "text",
+        placeholder: "e.g. end-of-term GPA",
       },
       {
         key: "question",
-        label: "Draft research question",
+        label: "Draft research question (one sentence)",
+        type: "textarea",
+        rows: 2,
         placeholder:
           "e.g. Does a 4-week sleep-hygiene program improve GPA in first-year students compared with no intervention?",
-        rows: 3,
       },
       {
-        key: "hypothesis",
-        label: "Hypothesis (optional)",
-        placeholder: "Your expected answer and direction of effect.",
-        rows: 2,
+        key: "direction",
+        label: "Hypothesis framing",
+        type: "select",
+        options: [
+          "Superiority (expect a difference)",
+          "Non-inferiority (no worse than)",
+          "Equivalence (about the same)",
+          "Exploratory (no specific direction)",
+        ],
       },
     ],
-    aiSuggestion:
-      "Critique my research question using PICO and FINER, and suggest 2-3 sharper versions.",
   },
   {
     id: "design",
     title: "Study design",
     short: "Design",
     blurb:
-      "Choose a design that fits your question and your data. Key fork: are you analyzing data you already have (or routinely collected) or planning new data collection? Then decide experimental vs observational, and the time structure (cross-sectional, cohort, case-control, RCT, etc.).",
+      "Choose a design that fits your question and data. Start with whether the data is new or existing, then the nature and structure of the study.",
     fields: [
       {
         key: "dataSource",
-        label: "Data: existing or newly collected?",
-        placeholder:
-          "e.g. We will recruit and randomize new participants / We will use an existing registry.",
-        rows: 2,
+        label: "Data source",
+        type: "select",
+        options: [
+          "Collecting new primary data",
+          "Using existing / secondary data (registry, records)",
+          "Both new and existing data",
+        ],
+      },
+      {
+        key: "nature",
+        label: "Nature of the study",
+        type: "select",
+        options: [
+          "Experimental (randomized)",
+          "Quasi-experimental (intervention, not randomized)",
+          "Observational (no intervention)",
+        ],
       },
       {
         key: "design",
-        label: "Proposed design",
-        placeholder: "e.g. parallel-group randomized controlled trial",
-        rows: 2,
+        label: "Specific design",
+        type: "select",
+        options: [
+          "Randomized controlled trial — parallel groups",
+          "Randomized controlled trial — crossover",
+          "Cluster randomized trial",
+          "Cohort study — prospective",
+          "Cohort study — retrospective",
+          "Case-control study",
+          "Cross-sectional study / survey",
+          "Case series / case report",
+          "Diagnostic accuracy study",
+          "Systematic review / meta-analysis",
+          "Qualitative study",
+        ],
       },
       {
-        key: "designRationale",
-        label: "Why this design? Constraints?",
+        key: "timeStructure",
+        label: "Time structure",
+        type: "select",
+        options: [
+          "Cross-sectional (single time point)",
+          "Longitudinal — single follow-up",
+          "Longitudinal — repeated measures",
+        ],
+      },
+      {
+        key: "allocationUnit",
+        label: "Unit of allocation / sampling",
+        type: "select",
+        options: ["Individual", "Cluster / group", "Not applicable"],
+      },
+      {
+        key: "blinding",
+        label: "Blinding",
+        type: "select",
+        options: [
+          "Open-label (no blinding)",
+          "Single-blind",
+          "Double-blind",
+          "Not applicable",
+        ],
+      },
+      {
+        key: "constraints",
+        label: "Key constraints (optional)",
+        type: "textarea",
+        rows: 2,
         placeholder: "Feasibility, ethics, time, cost, ability to randomize…",
-        rows: 3,
       },
     ],
-    aiSuggestion:
-      "Given my question and data availability, what study designs fit? Compare their strengths, weaknesses, and main biases.",
   },
   {
     id: "definitions",
     title: "Variables & definitions",
-    short: "Definitions",
+    short: "Variables",
     blurb:
-      "Define every key variable operationally — exactly how it will be measured. Specify your exposure/intervention, primary and secondary outcomes, and important confounders. State the variable type (continuous, binary, categorical, count, time-to-event) because it drives both sample size and statistics.",
+      "Define your key variables and — crucially — their types, because the variable type drives both sample size and the right statistical test.",
     fields: [
       {
-        key: "exposure",
-        label: "Exposure / intervention",
-        placeholder: "How is it defined and measured? Levels/doses?",
-        rows: 2,
+        key: "exposureName",
+        label: "Exposure / intervention name",
+        type: "text",
+        placeholder: "e.g. sleep-hygiene program",
       },
       {
-        key: "primaryOutcome",
-        label: "Primary outcome",
-        placeholder: "Operational definition + variable type + measurement tool.",
-        rows: 2,
+        key: "exposureType",
+        label: "Exposure / intervention type",
+        type: "select",
+        options: [
+          "Binary (two levels)",
+          "Categorical (>2 levels)",
+          "Ordinal",
+          "Continuous",
+          "Count",
+          "Not applicable",
+        ],
+      },
+      {
+        key: "primaryOutcomeName",
+        label: "Primary outcome name",
+        type: "text",
+        placeholder: "e.g. end-of-term GPA",
+      },
+      {
+        key: "primaryOutcomeType",
+        label: "Primary outcome type",
+        type: "select",
+        options: [
+          "Continuous",
+          "Binary",
+          "Categorical",
+          "Ordinal",
+          "Count / rate",
+          "Time-to-event (survival)",
+        ],
+      },
+      {
+        key: "measurement",
+        label: "How the primary outcome is measured",
+        type: "select",
+        options: [
+          "Validated instrument / scale",
+          "Lab value / biomarker",
+          "Clinical assessment / exam",
+          "Self-report questionnaire",
+          "Administrative / registry data",
+          "Direct physical measurement",
+          "Observation / coding",
+          "Other",
+        ],
+      },
+      {
+        key: "confounders",
+        label: "Main confounders to account for",
+        type: "multiselect",
+        options: [
+          "Age",
+          "Sex / gender",
+          "Socioeconomic status",
+          "Baseline value of the outcome",
+          "Comorbidities / health status",
+          "Lifestyle (diet, exercise, smoking)",
+          "Site / cluster",
+          "Time / season",
+          "None anticipated",
+        ],
       },
       {
         key: "otherVariables",
-        label: "Secondary outcomes & confounders",
-        placeholder: "List with types (continuous/binary/categorical/…).",
-        rows: 3,
+        label: "Secondary outcomes (optional)",
+        type: "textarea",
+        rows: 2,
+        placeholder: "List any secondary outcomes and their types.",
       },
     ],
-    aiSuggestion:
-      "Review my variables and operational definitions. Flag ambiguity, measurement issues, and confounders I may have missed.",
   },
   {
     id: "sampleSize",
     title: "Sample size",
     short: "Sample size",
     blurb:
-      "Estimate how many participants you need. Use the calculator on the right for a first-pass estimate, then capture your assumptions (effect size, variability, alpha, power, expected dropout) here. Justify every number.",
+      "Estimate how many participants you need. Use the calculator on the right, then record your assumptions here. Every dropdown below feeds the final review.",
     fields: [
       {
-        key: "assumptions",
-        label: "Assumptions & justification",
-        placeholder:
-          "Where do your effect size and variability estimates come from (pilot data, literature)?",
-        rows: 3,
+        key: "analysisGoal",
+        label: "What the sample size is powered for",
+        type: "select",
+        options: [
+          "Compare two means",
+          "Compare two proportions",
+          "Paired / within-subject comparison",
+          "One mean vs a reference",
+          "One proportion vs a reference",
+          "Correlation",
+          "ANOVA (more than two groups)",
+          "Regression model",
+          "Survival / time-to-event",
+          "Estimate a mean (precision)",
+          "Estimate a proportion (precision)",
+          "Non-inferiority / equivalence",
+        ],
       },
       {
-        key: "result",
-        label: "Calculated sample size",
-        placeholder: "Paste the calculator result and your final target N.",
+        key: "effectBasis",
+        label: "Where the assumed effect size comes from",
+        type: "select",
+        options: [
+          "Pilot / preliminary data",
+          "Published literature",
+          "Minimal clinically important difference (MCID)",
+          "Conventional small/medium/large (Cohen)",
+          "Expert opinion / best guess",
+        ],
+      },
+      {
+        key: "alpha",
+        label: "Significance level (alpha)",
+        type: "select",
+        options: ["0.05", "0.01", "0.025", "0.10"],
+      },
+      {
+        key: "power",
+        label: "Power (1 − beta)",
+        type: "select",
+        options: ["0.80", "0.85", "0.90", "0.95", "0.99"],
+      },
+      {
+        key: "tail",
+        label: "Test sidedness",
+        type: "select",
+        options: ["Two-sided", "One-sided"],
+      },
+      {
+        key: "allocationRatio",
+        label: "Allocation ratio (groups)",
+        type: "select",
+        options: ["1:1", "2:1", "3:1", "1:2", "Not applicable"],
+      },
+      {
+        key: "dropout",
+        label: "Expected dropout / non-response",
+        type: "select",
+        options: ["0%", "5%", "10%", "15%", "20%", "25%", "30%", "More than 30%"],
+      },
+      {
+        key: "targetN",
+        label: "Final target sample size (from the calculator)",
+        type: "text",
+        placeholder: "e.g. 128 total (64 per group)",
+      },
+      {
+        key: "assumptions",
+        label: "Assumptions & justification (brief)",
+        type: "textarea",
         rows: 2,
+        placeholder: "Effect size and variability values and their source.",
       },
     ],
-    aiSuggestion:
-      "Check my sample-size assumptions. Is the effect size realistic? What inflates or reduces the required N?",
   },
   {
     id: "resources",
     title: "Resources & feasibility",
     short: "Resources",
     blurb:
-      "Translate the plan into time, money, people, and materials. A study that is statistically sound but infeasible will not happen. Map recruitment rate against your target N and timeline.",
+      "Translate the plan into time, money, people, and approvals. A statistically sound but infeasible study will not happen.",
     fields: [
       {
+        key: "recruitmentRate",
+        label: "Expected recruitment / data rate",
+        type: "select",
+        options: [
+          "Fewer than 5 per month",
+          "5–20 per month",
+          "20–50 per month",
+          "50–100 per month",
+          "More than 100 per month",
+          "Using existing data (not applicable)",
+        ],
+      },
+      {
         key: "timeline",
-        label: "Timeline",
-        placeholder: "Recruitment window, data collection, analysis, write-up.",
-        rows: 2,
+        label: "Overall timeline",
+        type: "select",
+        options: [
+          "Less than 3 months",
+          "3–6 months",
+          "6–12 months",
+          "12–24 months",
+          "More than 24 months",
+        ],
       },
       {
         key: "budget",
-        label: "Budget & materials",
-        placeholder: "Equipment, incentives, software, assay costs…",
-        rows: 2,
+        label: "Budget band",
+        type: "select",
+        options: [
+          "None / minimal",
+          "Under $1,000",
+          "$1,000–$10,000",
+          "$10,000–$50,000",
+          "More than $50,000",
+        ],
       },
       {
-        key: "personnel",
-        label: "People & approvals",
-        placeholder: "Team roles, supervision, ethics/IRB approval needed.",
+        key: "ethics",
+        label: "Ethics / IRB approval",
+        type: "select",
+        options: [
+          "Required — not yet obtained",
+          "Required — already obtained",
+          "Likely exempt",
+          "Not sure",
+        ],
+      },
+      {
+        key: "team",
+        label: "Team size",
+        type: "select",
+        options: ["Solo", "2–3 people", "4–6 people", "More than 6 people"],
+      },
+      {
+        key: "dataManagement",
+        label: "Data capture / management",
+        type: "select",
+        options: [
+          "Paper then spreadsheet",
+          "Spreadsheet (Excel / Sheets)",
+          "REDCap / electronic data capture",
+          "Relational database",
+          "Statistical software files",
+          "Other",
+        ],
+      },
+      {
+        key: "risks",
+        label: "Main feasibility risks (optional)",
+        type: "textarea",
         rows: 2,
+        placeholder: "Recruitment shortfall, equipment, access, dependencies…",
       },
     ],
-    aiSuggestion:
-      "Given my target sample size and timeline, is recruitment feasible? Help me build a resource checklist and spot risks.",
   },
   {
     id: "analysis",
     title: "Statistical methods",
     short: "Analysis",
     blurb:
-      "Pre-specify how you will analyze the primary outcome before collecting data. The right test follows from your design and your variable types. Plan for missing data, multiple comparisons, and assumption checks.",
+      "Pre-specify how you will analyze the primary outcome. The right test follows from your design and variable types — pick from the menus.",
     fields: [
       {
-        key: "primaryAnalysis",
-        label: "Primary analysis",
-        placeholder: "e.g. independent t-test / logistic regression adjusting for X.",
-        rows: 2,
+        key: "primaryTest",
+        label: "Primary analysis / test",
+        type: "select",
+        options: [
+          "Independent-samples t-test",
+          "Paired t-test",
+          "One-way ANOVA",
+          "Repeated-measures ANOVA",
+          "Mann–Whitney U / Wilcoxon",
+          "Chi-square test",
+          "Fisher's exact test",
+          "Linear regression",
+          "Logistic regression",
+          "Poisson / negative binomial regression",
+          "Cox proportional-hazards regression",
+          "Kaplan–Meier / log-rank",
+          "Mixed-effects model",
+          "Correlation (Pearson / Spearman)",
+        ],
       },
       {
-        key: "secondaryAnalysis",
-        label: "Secondary & sensitivity analyses",
-        placeholder: "Subgroups, adjustments, robustness checks.",
-        rows: 2,
+        key: "adjustment",
+        label: "Confounder handling",
+        type: "select",
+        options: [
+          "Unadjusted (simple comparison)",
+          "Multivariable regression adjustment",
+          "Stratified analysis",
+          "Propensity-score methods",
+          "Matching",
+          "Not applicable",
+        ],
+      },
+      {
+        key: "missingData",
+        label: "Missing-data strategy",
+        type: "select",
+        options: [
+          "Complete-case analysis",
+          "Multiple imputation",
+          "Mixed model (uses all available data)",
+          "Last observation carried forward",
+          "Not anticipated",
+        ],
+      },
+      {
+        key: "multiplicity",
+        label: "Multiple-comparisons control",
+        type: "select",
+        options: [
+          "Single primary outcome — none needed",
+          "Bonferroni",
+          "Holm",
+          "Benjamini–Hochberg (FDR)",
+          "Hierarchical / gatekeeping",
+          "None planned",
+        ],
+      },
+      {
+        key: "software",
+        label: "Analysis software",
+        type: "select",
+        options: [
+          "R",
+          "Python",
+          "SPSS",
+          "Stata",
+          "SAS",
+          "GraphPad Prism",
+          "JASP / jamovi",
+          "Excel",
+          "Other",
+        ],
       },
       {
         key: "analysisNotes",
-        label: "Assumptions, missing data, software",
-        placeholder: "How you'll handle dropout, multiplicity, and check assumptions.",
-        rows: 3,
+        label: "Assumption checks & sensitivity analyses (optional)",
+        type: "textarea",
+        rows: 2,
+        placeholder: "How you'll check assumptions and test robustness.",
       },
     ],
-    aiSuggestion:
-      "Based on my design and variable types, what statistical test(s) should I use? Explain the assumptions and how to check them.",
   },
 ];
 
+// Step shown after the six content steps: the AI review / finalization.
+export const REVIEW_STEP = {
+  id: "review",
+  title: "Review & finalize",
+  short: "Finalize",
+  blurb:
+    "Submit your plan. SciPlan sends every selected option and note to the AI, which reviews the choices, corrects anything inconsistent, and returns a finalized study with a summary.",
+};
+
+export type FieldValue = string | string[];
+
 export type PlanData = {
   title: string;
-  answers: Record<string, Record<string, string>>; // stepId -> fieldKey -> value
-  aiNotes: Record<string, string>; // stepId -> latest AI response (saved)
+  // stepId -> fieldKey -> value (string or, for multiselect, string[])
+  answers: Record<string, Record<string, FieldValue>>;
+  // The AI-finalized study + summary, produced at the review step.
+  summary?: string;
+  finalizedAt?: string;
 };
 
 export function emptyPlan(): PlanData {
-  return { title: "Untitled research plan", answers: {}, aiNotes: {} };
+  return { title: "Untitled research plan", answers: {} };
+}
+
+/** Render the whole plan as readable text for the AI review. */
+export function buildPlanText(data: PlanData): string {
+  const lines: string[] = [`Working title: ${data.title}`];
+  for (const step of STEPS) {
+    const answers = data.answers[step.id] || {};
+    const filled = step.fields
+      .map((f) => {
+        const raw = answers[f.key];
+        const value = Array.isArray(raw) ? raw.join(", ") : (raw ?? "").trim();
+        return value ? `  - ${f.label}: ${value}` : null;
+      })
+      .filter(Boolean) as string[];
+    if (filled.length) {
+      lines.push(`\n${step.title}:`);
+      lines.push(...filled);
+    }
+  }
+  return lines.join("\n");
 }

@@ -1,42 +1,62 @@
 import { NextRequest } from "next/server";
-import { getAnthropic, MODEL, SYSTEM_PROMPT } from "@/lib/anthropic";
+import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
+import { getAnthropic, MODEL, FINALIZE_SYSTEM_PROMPT } from "@/lib/anthropic";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-interface AiRequest {
-  stepTitle: string;
-  instruction: string;
-  // The student's plan so far, rendered as readable text.
-  planContext: string;
+interface FinalizeRequest {
+  // The full plan rendered as readable text (built by the site, not the user).
+  planText: string;
 }
 
 export async function POST(req: NextRequest) {
+  // Require sign-in. Blocked users cannot run new finalizations.
+  const session = await auth();
+  if (!session?.user) {
+    return new Response("You must be signed in.", { status: 401 });
+  }
+  const dbUser = await prisma.user
+    .findUnique({ where: { id: session.user.id } })
+    .catch(() => null);
+  if (dbUser?.blocked) {
+    return new Response(
+      "Your account is restricted to viewing existing plans. You cannot create or finalize new plans.",
+      { status: 403 },
+    );
+  }
+
   const client = getAnthropic();
   if (!client) {
     return new Response(
-      "AI is not configured yet. Add an ANTHROPIC_API_KEY environment variable to enable AI guidance.",
+      "AI review is not configured yet. Add an ANTHROPIC_API_KEY environment variable to enable the final review.",
       { status: 503, headers: { "Content-Type": "text/plain" } },
     );
   }
 
-  let body: AiRequest;
+  let body: FinalizeRequest;
   try {
     body = await req.json();
   } catch {
     return new Response("Invalid JSON body.", { status: 400 });
   }
 
+  const planText = body.planText?.trim();
+  if (!planText) {
+    return new Response("The plan is empty — fill in the steps first.", {
+      status: 400,
+    });
+  }
+
   const userPrompt = [
-    `Current planning step: ${body.stepTitle}`,
+    "Here is the student's completed study plan (their selections and notes):",
     "",
-    "The student's plan so far:",
-    body.planContext?.trim() || "(nothing filled in yet)",
+    planText,
     "",
-    `Student's request: ${body.instruction}`,
+    "Review and finalize it as instructed.",
   ].join("\n");
 
-  // Stream the response back as plain text chunks.
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
@@ -48,7 +68,7 @@ export async function POST(req: NextRequest) {
           system: [
             {
               type: "text",
-              text: SYSTEM_PROMPT,
+              text: FINALIZE_SYSTEM_PROMPT,
               cache_control: { type: "ephemeral" },
             },
           ],

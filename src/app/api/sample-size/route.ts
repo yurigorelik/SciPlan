@@ -2,9 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   CalcType,
   inflateForDropout,
+  nAnova,
   nCompareMeans,
   nCompareProportions,
+  nCorrelation,
   nMeanPrecision,
+  nOneMean,
+  nOneProportion,
+  nPairedMeans,
   nProportionPrecision,
   SampleSizeResult,
   Tail,
@@ -48,6 +53,50 @@ export async function POST(req: NextRequest) {
           alpha: num("alpha", 0.05),
           power: num("power", 0.8),
           tail,
+        });
+        break;
+      case "pairedMeans":
+        result = nPairedMeans({
+          meanDiff: num("meanDiff"),
+          sdDiff: num("sdDiff"),
+          alpha: num("alpha", 0.05),
+          power: num("power", 0.8),
+          tail,
+        });
+        break;
+      case "oneMean":
+        result = nOneMean({
+          mean: num("mean"),
+          reference: num("reference"),
+          sd: num("sd"),
+          alpha: num("alpha", 0.05),
+          power: num("power", 0.8),
+          tail,
+        });
+        break;
+      case "oneProportion":
+        result = nOneProportion({
+          p: num("p"),
+          reference: num("reference"),
+          alpha: num("alpha", 0.05),
+          power: num("power", 0.8),
+          tail,
+        });
+        break;
+      case "correlation":
+        result = nCorrelation({
+          r: num("r"),
+          alpha: num("alpha", 0.05),
+          power: num("power", 0.8),
+          tail,
+        });
+        break;
+      case "anova":
+        result = nAnova({
+          groups: num("groups", 3),
+          effectF: num("effectF"),
+          alpha: num("alpha", 0.05),
+          power: num("power", 0.8),
         });
         break;
       case "meanPrecision":
