@@ -96,9 +96,32 @@ export default async function RootLayout({
           </div>
         </header>
         <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
-        <footer className="mx-auto max-w-6xl px-4 py-8 text-xs text-slate-400">
-          SciPlan helps you plan a study. It is an educational aid, not a
-          substitute for a supervisor, statistician, or ethics board.
+        <footer className="border-t border-slate-200">
+          <div className="mx-auto flex max-w-6xl flex-col items-start gap-4 px-4 py-8 sm:flex-row sm:items-center sm:justify-between">
+            <p className="max-w-xl text-xs text-slate-400">
+              SciPlan helps you plan a study. It is an educational aid, not a
+              substitute for a supervisor, statistician, or ethics board.
+            </p>
+            <a
+              href="/"
+              className="flex shrink-0 items-center gap-3 rounded-lg border border-slate-200 bg-white p-2"
+              title="Open the SciPlan homepage"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/qr-sciplan.svg"
+                alt="QR code linking to the SciPlan homepage"
+                className="h-16 w-16"
+                width={64}
+                height={64}
+              />
+              <span className="pr-2 text-xs leading-tight text-slate-500">
+                Scan to open
+                <br />
+                <span className="font-medium text-brand-700">SciPlan</span>
+              </span>
+            </a>
+          </div>
         </footer>
       </body>
     </html>
