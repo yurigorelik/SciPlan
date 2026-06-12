@@ -21,14 +21,16 @@ export default async function RootLayout({
 }) {
   const session = await auth();
   const user = session?.user;
+  const initial =
+    (user?.name?.[0] || user?.email?.[0] || "?").toUpperCase();
 
   return (
     <html lang="en">
       <body>
-        <header className="border-b border-slate-200 bg-white">
+        <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/85 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
             <Link href="/" className="flex items-center gap-2 font-semibold text-slate-900">
-              <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-600 text-sm text-white">
+              <span className="grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 text-sm text-white shadow-sm">
                 Sci
               </span>
               SciPlan
@@ -55,8 +57,23 @@ export default async function RootLayout({
                       Admin
                     </Link>
                   )}
-                  <span className="hidden text-slate-400 sm:inline">
-                    {user.email}
+                  <span className="hidden items-center gap-2 sm:flex">
+                    {user.image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={user.image}
+                        alt=""
+                        className="h-7 w-7 rounded-full border border-slate-200"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <span className="grid h-7 w-7 place-items-center rounded-full bg-slate-200 text-xs font-semibold text-slate-600">
+                        {initial}
+                      </span>
+                    )}
+                    <span className="max-w-[14rem] truncate text-slate-400">
+                      {user.email}
+                    </span>
                   </span>
                   <form action={signOutAction}>
                     <button

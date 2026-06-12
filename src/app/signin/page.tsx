@@ -40,12 +40,15 @@ export default async function SignInPage({
   const { error } = await searchParams;
 
   return (
-    <div className="mx-auto max-w-md">
-      <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+    <div className="mx-auto max-w-md py-8">
+      <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-md">
+        <span className="mb-4 grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-sm font-semibold text-white shadow-sm">
+          Sci
+        </span>
         <h1 className="text-2xl font-bold text-slate-900">Sign in to SciPlan</h1>
         <p className="mt-2 text-sm text-slate-600">
-          Sign in to plan your research. SciPlan is available to signed-in users
-          only.
+          Plan a sound study step by step, with a final AI review. SciPlan is
+          available to signed-in users only.
         </p>
 
         {(oauthEnabled.google || oauthEnabled.microsoft) && (
