@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
+import Markdown from "./Markdown";
 
 export interface AdminPlan {
   id: string;
@@ -20,19 +21,43 @@ export interface AdminUser {
   plans: AdminPlan[];
 }
 
+export type ResearchStatus = "draft" | "processing" | "done" | "error";
+
+export interface AdminResearch {
+  id: string;
+  title: string;
+  owner: string;
+  ownerName: string | null;
+  createdAt: string;
+  updatedAt: string;
+  status: ResearchStatus;
+  summary: string;
+}
+
+type Tab = "users" | "research";
+
 export default function AdminDashboard({
   initialUsers,
   currentUserId,
+  research,
 }: {
   initialUsers: AdminUser[];
   currentUserId: string;
+  research: AdminResearch[];
 }) {
+  const [tab, setTab] = useState<Tab>("users");
   const [users, setUsers] = useState(initialUsers);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
   const regularUsers = users.filter((u) => u.role !== "ADMIN");
+  const stats = {
+    users: users.length,
+    blocked: users.filter((u) => u.blocked).length,
+    plans: research.length,
+    finalized: research.filter((r) => r.status === "done").length,
+  };
 
   async function setBlocked(id: string, blocked: boolean) {
     setBusy(id);
@@ -108,68 +133,301 @@ export default function AdminDashboard({
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <button
-          onClick={() => bulk("blockAll")}
-          disabled={busy !== null || regularUsers.length === 0}
-          className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50"
-        >
-          Block all users
-        </button>
-        <button
-          onClick={() => bulk("unblockAll")}
-          disabled={busy !== null || regularUsers.length === 0}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-        >
-          Unblock all
-        </button>
-        <button
-          onClick={() => bulk("deleteAll")}
-          disabled={busy !== null || regularUsers.length === 0}
-          className="rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
-        >
-          Delete all users
-        </button>
-        {msg && <span className="text-sm text-slate-500">{msg}</span>}
+      {/* Stats */}
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard label="Users" value={stats.users} />
+        <StatCard label="Blocked" value={stats.blocked} tone="amber" />
+        <StatCard label="Research plans" value={stats.plans} />
+        <StatCard label="Finalized" value={stats.finalized} tone="emerald" />
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      {/* Tabs */}
+      <div className="mb-5 flex w-fit gap-1 rounded-xl bg-slate-100 p-1">
+        <TabButton active={tab === "users"} onClick={() => setTab("users")}>
+          Users
+        </TabButton>
+        <TabButton active={tab === "research"} onClick={() => setTab("research")}>
+          Submitted research
+          <span className="ml-1.5 rounded-full bg-white/70 px-1.5 text-xs text-slate-500">
+            {research.length}
+          </span>
+        </TabButton>
+      </div>
+
+      {tab === "users" ? (
+        <>
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => bulk("blockAll")}
+              disabled={busy !== null || regularUsers.length === 0}
+              className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+            >
+              Block all users
+            </button>
+            <button
+              onClick={() => bulk("unblockAll")}
+              disabled={busy !== null || regularUsers.length === 0}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Unblock all
+            </button>
+            <button
+              onClick={() => bulk("deleteAll")}
+              disabled={busy !== null || regularUsers.length === 0}
+              className="rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
+            >
+              Delete all users
+            </button>
+            {msg && <span className="text-sm text-slate-500">{msg}</span>}
+          </div>
+
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-4 py-3">User</th>
+                  <th className="px-4 py-3">Role</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Plans</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {users.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
+                      No users yet.
+                    </td>
+                  </tr>
+                )}
+                {users.map((u) => (
+                  <UserRow
+                    key={u.id}
+                    user={u}
+                    isSelf={u.id === currentUserId}
+                    busy={busy === u.id}
+                    expanded={expanded === u.id}
+                    onToggleExpand={() =>
+                      setExpanded((e) => (e === u.id ? null : u.id))
+                    }
+                    onBlock={(b) => setBlocked(u.id, b)}
+                    onDelete={() => deleteUser(u.id)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : (
+        <ResearchTable research={research} />
+      )}
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  tone = "slate",
+}: {
+  label: string;
+  value: number;
+  tone?: "slate" | "amber" | "emerald";
+}) {
+  const tones = {
+    slate: "text-slate-900",
+    amber: "text-amber-600",
+    emerald: "text-emerald-600",
+  };
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+        {label}
+      </p>
+      <p className={`mt-1 text-2xl font-bold ${tones[tone]}`}>{value}</p>
+    </div>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center rounded-lg px-4 py-1.5 text-sm font-medium transition ${
+        active
+          ? "bg-white text-slate-900 shadow-sm"
+          : "text-slate-500 hover:text-slate-700"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+const STATUS_META: Record<
+  ResearchStatus,
+  { label: string; className: string }
+> = {
+  done: { label: "Finalized", className: "bg-emerald-50 text-emerald-700" },
+  processing: { label: "Finalizing…", className: "bg-brand-50 text-brand-700" },
+  error: { label: "Review failed", className: "bg-red-50 text-red-700" },
+  draft: { label: "Draft", className: "bg-slate-100 text-slate-500" },
+};
+
+function ResearchTable({ research }: { research: AdminResearch[] }) {
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | ResearchStatus>("all");
+  const [open, setOpen] = useState<string | null>(null);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return research.filter((r) => {
+      if (statusFilter !== "all" && r.status !== statusFilter) return false;
+      if (!q) return true;
+      return (
+        r.title.toLowerCase().includes(q) ||
+        r.owner.toLowerCase().includes(q) ||
+        (r.ownerName ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [research, query, statusFilter]);
+
+  return (
+    <div>
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search by title or user…"
+          className="w-64 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+        />
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as "all" | ResearchStatus)}
+          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none"
+        >
+          <option value="all">All statuses</option>
+          <option value="done">Finalized</option>
+          <option value="processing">Finalizing</option>
+          <option value="draft">Draft</option>
+          <option value="error">Review failed</option>
+        </select>
+        <span className="text-xs text-slate-400">
+          {filtered.length} of {research.length} plan(s)
+        </span>
+      </div>
+
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
+              <th className="px-4 py-3">Research plan</th>
               <th className="px-4 py-3">User</th>
-              <th className="px-4 py-3">Role</th>
               <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Plans</th>
+              <th className="px-4 py-3">Updated</th>
               <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {users.length === 0 && (
+            {filtered.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
-                  No users yet.
+                  No research plans match.
                 </td>
               </tr>
             )}
-            {users.map((u) => (
-              <UserRow
-                key={u.id}
-                user={u}
-                isSelf={u.id === currentUserId}
-                busy={busy === u.id}
-                expanded={expanded === u.id}
-                onToggleExpand={() =>
-                  setExpanded((e) => (e === u.id ? null : u.id))
-                }
-                onBlock={(b) => setBlocked(u.id, b)}
-                onDelete={() => deleteUser(u.id)}
-              />
-            ))}
+            {filtered.map((r) => {
+              const meta = STATUS_META[r.status];
+              const isOpen = open === r.id;
+              return (
+                <ResearchRow
+                  key={r.id}
+                  r={r}
+                  meta={meta}
+                  isOpen={isOpen}
+                  onToggle={() => setOpen((o) => (o === r.id ? null : r.id))}
+                />
+              );
+            })}
           </tbody>
         </table>
       </div>
     </div>
+  );
+}
+
+function ResearchRow({
+  r,
+  meta,
+  isOpen,
+  onToggle,
+}: {
+  r: AdminResearch;
+  meta: { label: string; className: string };
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <>
+      <tr className="align-top">
+        <td className="px-4 py-3">
+          <p className="font-medium text-slate-900">{r.title}</p>
+          <p className="text-xs text-slate-400">
+            created {new Date(r.createdAt).toLocaleDateString()}
+          </p>
+        </td>
+        <td className="px-4 py-3">
+          <p className="text-slate-700">{r.ownerName || "(no name)"}</p>
+          <p className="text-xs text-slate-400">{r.owner}</p>
+        </td>
+        <td className="px-4 py-3">
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs font-medium ${meta.className}`}
+          >
+            {meta.label}
+          </span>
+        </td>
+        <td className="px-4 py-3 text-slate-500">
+          {new Date(r.updatedAt).toLocaleString()}
+        </td>
+        <td className="px-4 py-3">
+          <div className="flex justify-end gap-2">
+            {r.summary && (
+              <button
+                onClick={onToggle}
+                className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:border-brand-400 hover:text-brand-700"
+              >
+                {isOpen ? "Hide summary ▲" : "Summary ▾"}
+              </button>
+            )}
+            <Link
+              href={`/plan/${r.id}`}
+              className="rounded-md border border-brand-300 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-100"
+            >
+              Open →
+            </Link>
+          </div>
+        </td>
+      </tr>
+      {isOpen && r.summary && (
+        <tr>
+          <td colSpan={5} className="bg-slate-50 px-6 py-4">
+            <div className="max-h-96 overflow-y-auto rounded-lg border border-slate-200 bg-white p-5">
+              <Markdown>{r.summary}</Markdown>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 

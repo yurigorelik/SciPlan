@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   STEPS,
   REVIEW_STEP,
   PlanData,
   emptyPlan,
+  stepProgress,
   type FieldDef,
   type FieldValue,
   type FinalizeStatus,
@@ -33,6 +34,7 @@ export default function Wizard({
   const [current, setCurrent] = useState(0);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
   const [output, setOutput] = useState(initialData?.summary || "");
   const [status, setStatus] = useState<FinalizeStatus>(
     initialData?.finalizeStatus ?? (initialData?.summary ? "done" : "idle"),
@@ -45,6 +47,17 @@ export default function Wizard({
   const isReview = current === STEPS.length;
   const step = isReview ? null : STEPS[current];
 
+  const progress = useMemo(() => {
+    let filled = 0;
+    let total = 0;
+    for (const s of STEPS) {
+      const p = stepProgress(data, s);
+      filled += p.filled;
+      total += p.total;
+    }
+    return { filled, total, pct: total ? Math.round((filled / total) * 100) : 0 };
+  }, [data]);
+
   const setField = useCallback(
     (stepId: string, key: string, value: FieldValue) => {
       setData((prev) => ({
@@ -54,6 +67,7 @@ export default function Wizard({
           [stepId]: { ...prev.answers[stepId], [key]: value },
         },
       }));
+      setDirty(true);
     },
     [],
   );
@@ -85,12 +99,36 @@ export default function Wizard({
     [data, planId, router],
   );
 
+  // Autosave: once the plan exists, debounce edits and save automatically.
+  useEffect(() => {
+    if (!dirty || !planId || readOnly) return;
+    const t = setTimeout(async () => {
+      try {
+        setSaving(true);
+        await persist();
+        setDirty(false);
+        setSaveMsg("All changes saved");
+      } catch (e) {
+        setSaveMsg(e instanceof Error ? e.message : "Could not save.");
+      } finally {
+        setSaving(false);
+      }
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [dirty, data, planId, readOnly, persist]);
+
+  // Scroll back to the top when moving between steps.
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [current]);
+
   async function save() {
     setSaving(true);
     setSaveMsg(null);
     try {
       await persist();
-      setSaveMsg(planId ? "Saved." : "Saved. This plan now has a shareable link.");
+      setDirty(false);
+      setSaveMsg(planId ? "All changes saved" : "Saved — this plan now has its own link.");
     } catch (e) {
       setSaveMsg(e instanceof Error ? e.message : "Could not save.");
     } finally {
@@ -140,6 +178,7 @@ export default function Wizard({
   async function finalize() {
     setStatus("processing");
     setFinalizeError("");
+    setData((p) => ({ ...p, finalizeStatus: "processing" }));
     try {
       const id = await persist({ finalizeStatus: "processing" });
       const res = await fetch(`/api/plans/${id}/finalize`, { method: "POST" });
@@ -157,78 +196,141 @@ export default function Wizard({
   return (
     <div>
       {readOnly && (
-        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          {readOnlyReason ||
-            "You are viewing this plan in read-only mode."}
+        <div className="mb-6 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <LockIcon />
+          {readOnlyReason || "You are viewing this plan in read-only mode."}
         </div>
       )}
 
-      {/* Header: title + save */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+      {/* Header: title + save state */}
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <input
           value={data.title}
-          onChange={(e) => setData((p) => ({ ...p, title: e.target.value }))}
+          onChange={(e) => {
+            setData((p) => ({ ...p, title: e.target.value }));
+            setDirty(true);
+          }}
           disabled={readOnly}
-          className="flex-1 rounded-lg border border-transparent bg-transparent px-1 text-2xl font-bold text-slate-900 hover:border-slate-200 focus:border-brand-400 focus:outline-none disabled:hover:border-transparent"
+          aria-label="Plan title"
+          className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-1 text-2xl font-bold text-slate-900 hover:border-slate-200 focus:border-brand-400 focus:outline-none disabled:hover:border-transparent"
         />
         {!readOnly && (
-          <div className="flex items-center gap-3">
-            {saveMsg && <span className="text-sm text-slate-500">{saveMsg}</span>}
-            <button
-              onClick={() => save()}
-              disabled={saving}
-              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-            >
-              {saving ? "Saving…" : planId ? "Save" : "Save & get link"}
-            </button>
+          <div className="flex items-center gap-3 text-sm">
+            {saving ? (
+              <span className="flex items-center gap-1.5 text-slate-400">
+                <Spinner className="border-slate-300 border-t-slate-500" />
+                Saving…
+              </span>
+            ) : dirty && planId ? (
+              <span className="text-slate-400">Unsaved changes…</span>
+            ) : (
+              saveMsg && (
+                <span className="flex items-center gap-1 text-emerald-600">
+                  <CheckIcon className="h-3.5 w-3.5" />
+                  {saveMsg}
+                </span>
+              )
+            )}
+            {!planId && (
+              <button
+                onClick={save}
+                disabled={saving}
+                className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-700 disabled:opacity-50"
+              >
+                Save & get link
+              </button>
+            )}
           </div>
         )}
       </div>
 
-      {/* Step nav */}
-      <ol className="mb-8 flex flex-wrap gap-2">
-        {TABS.map((s, i) => (
-          <li key={s.id}>
-            <button
-              onClick={() => setCurrent(i)}
-              className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition ${
-                i === current
-                  ? "border-brand-600 bg-brand-600 text-white"
-                  : i === STEPS.length
-                    ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:border-emerald-500"
-                    : "border-slate-300 bg-white text-slate-600 hover:border-brand-400"
-              }`}
-            >
-              <span
-                className={`grid h-5 w-5 place-items-center rounded-full text-xs ${
-                  i === current ? "bg-white/20" : "bg-slate-100 text-slate-500"
+      {/* Step nav + overall progress */}
+      <ol className="mb-3 flex flex-wrap gap-2">
+        {TABS.map((s, i) => {
+          const isCurrent = i === current;
+          const isReviewTab = i === STEPS.length;
+          const p = isReviewTab ? null : stepProgress(data, STEPS[i]);
+          const complete = !!p && p.total > 0 && p.filled === p.total;
+          return (
+            <li key={s.id}>
+              <button
+                onClick={() => setCurrent(i)}
+                className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition ${
+                  isCurrent
+                    ? "border-brand-600 bg-brand-600 text-white shadow-sm"
+                    : isReviewTab
+                      ? "border-brand-200 bg-brand-50 text-brand-700 hover:border-brand-400"
+                      : complete
+                        ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:border-emerald-500"
+                        : "border-slate-300 bg-white text-slate-600 hover:border-brand-400"
                 }`}
               >
-                {i === STEPS.length ? "✓" : i + 1}
-              </span>
-              {s.short}
-            </button>
-          </li>
-        ))}
+                <span
+                  className={`grid h-5 w-5 place-items-center rounded-full text-xs ${
+                    isCurrent
+                      ? "bg-white/20"
+                      : complete
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-slate-100 text-slate-500"
+                  }`}
+                >
+                  {isReviewTab ? "✦" : complete ? "✓" : i + 1}
+                </span>
+                {s.short}
+                {p && p.filled > 0 && !complete && (
+                  <span
+                    className={`text-[10px] ${isCurrent ? "text-white/70" : "text-slate-400"}`}
+                  >
+                    {p.filled}/{p.total}
+                  </span>
+                )}
+              </button>
+            </li>
+          );
+        })}
       </ol>
+      <div className="mb-8 flex items-center gap-3">
+        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-brand-500 to-emerald-500 transition-all duration-500"
+            style={{ width: `${progress.pct}%` }}
+          />
+        </div>
+        <span className="text-xs font-medium text-slate-400">
+          {progress.pct}% complete
+        </span>
+      </div>
 
       {isReview ? (
         <ReviewPanel
+          data={data}
           summary={output}
           finalizedAt={data.finalizedAt}
           status={status}
           error={finalizeError}
           readOnly={readOnly}
           onFinalize={finalize}
+          onJump={setCurrent}
         />
       ) : (
         <div className="grid gap-6 lg:grid-cols-[1fr_24rem]">
           {/* Left: the step form */}
-          <div>
-            <h2 className="text-xl font-semibold text-slate-900">{step!.title}</h2>
-            <p className="mt-2 text-sm text-slate-600">{step!.blurb}</p>
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-brand-600">
+                  Step {current + 1} of {STEPS.length}
+                </p>
+                <h2 className="mt-1 text-xl font-semibold text-slate-900">
+                  {step!.title}
+                </h2>
+              </div>
+            </div>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">
+              {step!.blurb}
+            </p>
 
-            <div className="mt-5 space-y-4">
+            <div className="mt-6 space-y-5">
               {step!.fields.map((f) => (
                 <FieldInput
                   key={f.key}
@@ -240,19 +342,23 @@ export default function Wizard({
               ))}
             </div>
 
-            <div className="mt-6 flex justify-between">
+            <div className="mt-8 flex justify-between border-t border-slate-100 pt-5">
               <button
                 onClick={() => setCurrent((c) => Math.max(0, c - 1))}
                 disabled={current === 0}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-white disabled:opacity-40"
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
               >
                 ← Previous
               </button>
               <button
                 onClick={() => setCurrent((c) => Math.min(TABS.length - 1, c + 1))}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-white"
+                className={`rounded-lg px-4 py-2 text-sm font-medium ${
+                  current === STEPS.length - 1
+                    ? "bg-brand-600 text-white shadow-sm hover:bg-brand-700"
+                    : "border border-slate-300 text-slate-700 hover:bg-slate-50"
+                }`}
               >
-                {current === STEPS.length - 1 ? "Review →" : "Next →"}
+                {current === STEPS.length - 1 ? "Review & finalize →" : "Next →"}
               </button>
             </div>
           </div>
@@ -302,7 +408,7 @@ function FieldInput({
           value={typeof value === "string" ? value : ""}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
-          className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:outline-none disabled:bg-slate-50"
+          className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 disabled:bg-slate-50"
         >
           <option value="">— Select —</option>
           {field.options?.map((o) => (
@@ -327,7 +433,7 @@ function FieldInput({
     return (
       <div>
         <span className="text-sm font-medium text-slate-700">{field.label}</span>
-        <div className="mt-1 flex flex-wrap gap-2">
+        <div className="mt-2 flex flex-wrap gap-2">
           {field.options?.map((o) => {
             const on = selected.includes(o);
             return (
@@ -338,10 +444,11 @@ function FieldInput({
                 onClick={() => toggle(o)}
                 className={`rounded-full border px-3 py-1 text-xs transition disabled:opacity-60 ${
                   on
-                    ? "border-brand-600 bg-brand-600 text-white"
-                    : "border-slate-300 bg-white text-slate-600 hover:border-brand-400"
+                    ? "border-brand-600 bg-brand-600 text-white shadow-sm"
+                    : "border-slate-300 bg-white text-slate-600 hover:border-brand-400 hover:text-brand-700"
                 }`}
               >
+                {on && <span className="mr-1">✓</span>}
                 {o}
               </button>
             );
@@ -361,7 +468,7 @@ function FieldInput({
           placeholder={field.placeholder}
           rows={field.rows || 2}
           disabled={disabled}
-          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none disabled:bg-slate-50"
+          className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 disabled:bg-slate-50"
         />
       </label>
     );
@@ -376,42 +483,106 @@ function FieldInput({
         onChange={(e) => onChange(e.target.value)}
         placeholder={field.placeholder}
         disabled={disabled}
-        className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none disabled:bg-slate-50"
+        className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 disabled:bg-slate-50"
       />
     </label>
   );
 }
 
 function ReviewPanel({
+  data,
   summary,
   finalizedAt,
   status,
   error,
   readOnly,
   onFinalize,
+  onJump,
 }: {
+  data: PlanData;
   summary: string;
   finalizedAt?: string;
   status: FinalizeStatus;
   error: string;
   readOnly: boolean;
   onFinalize: () => void;
+  onJump: (index: number) => void;
 }) {
   const processing = status === "processing";
+  const [copied, setCopied] = useState(false);
+
+  async function copySummary() {
+    try {
+      await navigator.clipboard.writeText(summary);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard unavailable — ignore.
+    }
+  }
+
+  function downloadSummary() {
+    const blob = new Blob([`# ${data.title}\n\n${summary}`], {
+      type: "text/markdown;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${data.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "sciplan-study"}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="max-w-3xl">
       <h2 className="text-xl font-semibold text-slate-900">{REVIEW_STEP.title}</h2>
       <p className="mt-2 text-sm text-slate-600">{REVIEW_STEP.blurb}</p>
 
+      {/* Readiness checklist */}
+      {!readOnly && (
+        <div className="mt-5 grid gap-2 sm:grid-cols-2">
+          {STEPS.map((s, i) => {
+            const p = stepProgress(data, s);
+            const complete = p.total > 0 && p.filled === p.total;
+            const started = p.filled > 0;
+            return (
+              <button
+                key={s.id}
+                onClick={() => onJump(i)}
+                className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-left text-sm transition hover:border-brand-400"
+              >
+                <span className="flex items-center gap-2.5">
+                  <span
+                    className={`grid h-5 w-5 place-items-center rounded-full text-xs ${
+                      complete
+                        ? "bg-emerald-100 text-emerald-700"
+                        : started
+                          ? "bg-brand-50 text-brand-700"
+                          : "bg-slate-100 text-slate-400"
+                    }`}
+                  >
+                    {complete ? "✓" : i + 1}
+                  </span>
+                  <span className="font-medium text-slate-700">{s.title}</span>
+                </span>
+                <span
+                  className={`text-xs ${started ? "text-slate-500" : "text-slate-300"}`}
+                >
+                  {p.filled}/{p.total}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {!readOnly && (
         <button
           onClick={onFinalize}
           disabled={processing}
-          className="mt-5 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+          className="mt-6 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
         >
-          {processing && (
-            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-          )}
+          {processing && <Spinner className="border-white/40 border-t-white" />}
           {processing
             ? "Reviewing in the background…"
             : summary
@@ -434,15 +605,38 @@ function ReviewPanel({
         </p>
       )}
 
-      {finalizedAt && status === "done" && (
-        <p className="mt-3 text-xs text-slate-400">
-          Last finalized {new Date(finalizedAt).toLocaleString()}.
-        </p>
-      )}
-
       {summary ? (
-        <div className="mt-5 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <Markdown>{summary}</Markdown>
+        <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/60 px-5 py-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <span className="grid h-5 w-5 place-items-center rounded bg-emerald-600 text-[10px] text-white">
+                ✓
+              </span>
+              Finalized study
+              {finalizedAt && status === "done" && (
+                <span className="font-normal text-xs text-slate-400">
+                  · {new Date(finalizedAt).toLocaleString()}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={copySummary}
+                className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:border-brand-400 hover:text-brand-700"
+              >
+                {copied ? "Copied ✓" : "Copy"}
+              </button>
+              <button
+                onClick={downloadSummary}
+                className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:border-brand-400 hover:text-brand-700"
+              >
+                Download .md
+              </button>
+            </div>
+          </div>
+          <div className="p-6">
+            <Markdown>{summary}</Markdown>
+          </div>
         </div>
       ) : (
         !readOnly &&
@@ -456,5 +650,48 @@ function ReviewPanel({
         )
       )}
     </div>
+  );
+}
+
+function Spinner({ className = "" }: { className?: string }) {
+  return (
+    <span
+      className={`h-3.5 w-3.5 animate-spin rounded-full border-2 ${className}`}
+    />
+  );
+}
+
+function CheckIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" className={className} aria-hidden>
+      <path
+        d="M3 8.5 6.5 12 13 4.5"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" className="h-4 w-4 shrink-0" aria-hidden>
+      <rect
+        x="3"
+        y="7"
+        width="10"
+        height="7"
+        rx="1.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+    </svg>
   );
 }

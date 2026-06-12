@@ -106,6 +106,18 @@ export async function DELETE(
   if (existing.userId !== session.user.id && session.user.role !== "ADMIN") {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
+  // Blocked owners are view-only; admins may still delete.
+  if (existing.userId === session.user.id && session.user.role !== "ADMIN") {
+    const dbUser = await prisma.user
+      .findUnique({ where: { id: session.user.id } })
+      .catch(() => null);
+    if (dbUser?.blocked) {
+      return NextResponse.json(
+        { error: "Your account is restricted to viewing existing plans." },
+        { status: 403 },
+      );
+    }
+  }
   try {
     await prisma.plan.delete({ where: { id } });
     return NextResponse.json({ ok: true });

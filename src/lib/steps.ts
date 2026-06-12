@@ -530,6 +530,20 @@ export function emptyPlan(): PlanData {
   return { title: "Untitled research plan", answers: {} };
 }
 
+/** How many fields of a step are filled in (used for progress indicators). */
+export function stepProgress(
+  data: PlanData,
+  step: StepDef,
+): { filled: number; total: number } {
+  const answers = data.answers[step.id] || {};
+  let filled = 0;
+  for (const f of step.fields) {
+    const v = answers[f.key];
+    if (Array.isArray(v) ? v.length > 0 : (v ?? "").trim()) filled++;
+  }
+  return { filled, total: step.fields.length };
+}
+
 /** Render the whole plan as readable text for the AI review. */
 export function buildPlanText(data: PlanData): string {
   const lines: string[] = [`Working title: ${data.title}`];
