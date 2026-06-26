@@ -26,11 +26,22 @@ model User {
   // Blocked users may still sign in and view their existing plans, but cannot
   // create or edit plans.
   blocked       Boolean   @default(false)
+  // Doctor mode. Any user can opt in to act as a doctor (set their own
+  // availability and accept visit requests). A user can still book visits as a
+  // patient regardless of this flag.
+  isDoctor      Boolean   @default(false)
+  specialty     String?
+  bio           String?
   createdAt     DateTime  @default(now())
 
   accounts Account[]
   sessions Session[]
   plans    Plan[]
+
+  // Doctor-visit scheduling relations.
+  patientVisits Visit[] @relation("PatientVisits")
+  doctorVisits  Visit[] @relation("DoctorVisits")
+  slots         Slot[]  @relation("DoctorSlots")
 }
 
 // NextAuth/Auth.js — linked OAuth provider account.
@@ -83,4 +94,102 @@ model Plan {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+}
+
+// ── Doctor-visit scheduling ──────────────────────────────────────────────────
+
+// Lifecycle of a visit. Either side may create the request; the doctor always
+// accepts (setting cost, modality, and slots) before the patient can book.
+enum VisitStatus {
+  REQUESTED // created; awaiting the doctor to accept (set cost + slots) or decline
+  ACCEPTED // doctor set cost + modality + slots; awaiting the patient to book
+  BOOKED // patient secured a slot and accepted the terms + cost
+  DECLINED // doctor declined the request (terminal)
+  CANCELLED // cancelled by either party (terminal)
+  COMPLETED // the visit took place (terminal)
+}
+
+enum VisitModality {
+  IN_PERSON
+  VIDEO
+}
+
+// How the patient's bookable slots are sourced once the doctor accepts.
+enum SlotSource {
+  EXISTING // draw from the doctor's standing availability
+  CUSTOM // slots the doctor provided for this specific visit
+}
+
+enum VisitParty {
+  PATIENT
+  DOCTOR
+}
+
+// A scheduling request between a patient and a doctor.
+model Visit {
+  id          String      @id @default(cuid())
+  patientId   String
+  patient     User        @relation("PatientVisits", fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId    String
+  doctor      User        @relation("DoctorVisits", fields: [doctorId], references: [id], onDelete: Cascade)
+  requestedBy VisitParty
+  status      VisitStatus @default(REQUESTED)
+  // Patient's reason / chief complaint, or the doctor's note when they request.
+  reason      String?
+
+  // Terms set by the doctor when accepting.
+  modality    VisitModality?
+  meetingLink String? // for VIDEO visits
+  location    String? // for IN_PERSON visits
+  costCents   Int? // set by the doctor at acceptance (0 = free)
+  currency    String         @default("USD")
+  terms       String? // optional policy text the patient must accept
+  slotSource  SlotSource?
+
+  // The patient's booking.
+  scheduledSlotId String?   @unique
+  scheduledSlot   Slot?     @relation("BookedSlot", fields: [scheduledSlotId], references: [id], onDelete: SetNull)
+  scheduledStart  DateTime? // denormalized from the booked slot
+  scheduledEnd    DateTime?
+  termsAcceptedAt DateTime?
+
+  // Lifecycle bookkeeping.
+  acceptedAt  DateTime?
+  declinedAt  DateTime?
+  cancelledAt DateTime?
+  cancelledBy VisitParty?
+  completedAt DateTime?
+
+  // Slots the doctor created specifically for this visit (slotSource = CUSTOM).
+  customSlots Slot[] @relation("VisitCustomSlots")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([status])
+}
+
+// A bookable time slot owned by a doctor. Standing availability has visitId
+// null; a slot created for one specific visit proposal has visitId set.
+model Slot {
+  id       String   @id @default(cuid())
+  doctorId String
+  doctor   User     @relation("DoctorSlots", fields: [doctorId], references: [id], onDelete: Cascade)
+  start    DateTime
+  end      DateTime
+  booked   Boolean  @default(false)
+
+  // Custom slot tied to one visit proposal (null = standing availability).
+  visitId String?
+  visit   Visit?  @relation("VisitCustomSlots", fields: [visitId], references: [id], onDelete: Cascade)
+
+  // Back-relation: the visit that secured this slot (FK lives on Visit).
+  bookedFor Visit? @relation("BookedSlot")
+
+  createdAt DateTime @default(now())
+
+  @@index([doctorId])
+  @@index([visitId])
 }

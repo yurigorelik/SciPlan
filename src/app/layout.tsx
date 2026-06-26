@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
 import { auth, signOut } from "@/auth";
+import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = {
   title: "SciPlan — Plan your research, step by step",
@@ -23,6 +24,21 @@ export default async function RootLayout({
   const user = session?.user;
   const initial =
     (user?.name?.[0] || user?.email?.[0] || "?").toUpperCase();
+
+  // Whether the signed-in user has doctor mode on (drives the nav link).
+  // Read from the database since it isn't carried in the session token.
+  let isDoctor = false;
+  if (user?.id) {
+    try {
+      const dbUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { isDoctor: true },
+      });
+      isDoctor = !!dbUser?.isDoctor;
+    } catch {
+      // Database not configured — leave the doctor link hidden.
+    }
+  }
 
   return (
     <html lang="en">
@@ -47,6 +63,17 @@ export default async function RootLayout({
                       className="text-slate-600 hover:text-brand-700"
                     >
                       New plan
+                    </Link>
+                  )}
+                  <Link href="/visits" className="text-slate-600 hover:text-brand-700">
+                    Visits
+                  </Link>
+                  {isDoctor && !user.blocked && (
+                    <Link
+                      href="/doctor"
+                      className="text-slate-600 hover:text-brand-700"
+                    >
+                      Doctor
                     </Link>
                   )}
                   {user.role === "ADMIN" && (

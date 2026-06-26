@@ -56,6 +56,25 @@ export default async function Home() {
       </section>
 
       <section className="mb-12">
+        <Link
+          href="/visits"
+          className="group flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-gradient-to-br from-brand-50 to-white p-5 shadow-sm transition hover:border-brand-400"
+        >
+          <div>
+            <h2 className="font-semibold text-slate-900">Schedule a doctor visit</h2>
+            <p className="mt-1 max-w-2xl text-sm text-slate-600">
+              Request a visit with a doctor, agree on a time and cost, and meet in
+              person or by video. Doctors can set their availability and accept
+              requests.
+            </p>
+          </div>
+          <span className="shrink-0 rounded-lg border border-brand-300 bg-white px-4 py-2 text-sm font-medium text-brand-700 transition group-hover:border-brand-400">
+            Go to visits →
+          </span>
+        </Link>
+      </section>
+
+      <section className="mb-12">
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">
           My plans
         </h2>

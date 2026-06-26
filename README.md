@@ -2,7 +2,8 @@
 
 An interactive website that teaches and enables students to plan research —
 step by step, from the research question through to the statistical analysis
-plan — with a final AI review (Anthropic Claude) and built-in calculators.
+plan — with a final AI review (Anthropic Claude) and built-in calculators. It
+also lets users **schedule doctor visits** (see below).
 
 Sign-in is required to use the site (Google, Microsoft, or the built-in admin
 account). Administrators get a dashboard to manage users.
@@ -46,6 +47,32 @@ estimates, and dropout inflation. Plans are saved to Postgres per user.
   delete (single or all), and view any user's plans and summaries read-only.
 - **Blocked users** can still sign in and view plans they already created, but
   cannot create, edit, or finalize new plans.
+
+## Doctor visits
+
+Beyond research planning, signed-in users can schedule **doctor visits**. The
+flow is a small state machine so both sides stay in control:
+
+1. **Either side requests a visit** (`/visits/new`). A patient picks a doctor
+   from the directory; a doctor invites a patient by email. The visit starts in
+   **Requested**.
+2. **The doctor accepts** (on the visit page): they set the **cost**, choose
+   **in person or video** (providing a meeting link for video), optionally add
+   **terms**, and decide how the patient picks a time — either by offering
+   **slots just for this visit** or by letting the patient use the doctor's
+   **standing availability**. The visit moves to **Awaiting booking**. The
+   doctor can also **decline** a request.
+3. **The patient books**: they can only choose a slot *after* the doctor has
+   accepted and provided times. They pick an open slot, **accept the cost and
+   terms**, and secure it. Slot booking is atomic, so two patients can't take
+   the same standing slot. The visit becomes **Booked**.
+4. Either party can **cancel** at any point (a booked slot is released back to
+   the doctor's availability), and the doctor can mark a booked visit
+   **Completed**.
+
+Anyone can turn on **doctor mode** at `/doctor`, set a specialty/bio, and manage
+their standing availability slots. Blocked users can view their visits but can't
+act on them; admins can view any visit read-only.
 
 ## Tech stack
 
@@ -103,7 +130,7 @@ Railway sets `PORT` automatically; `next start` reads it.
 ## Project layout
 
 ```
-prisma/schema.prisma      User / Account / Session / Plan models
+prisma/schema.prisma      User / Account / Session / Plan + Visit / Slot models
 src/auth.ts               Auth.js config (Google, Microsoft, credentials admin)
 src/auth.config.ts        Edge-safe auth config (used by the middleware)
 src/middleware.ts         Gates every route behind sign-in
@@ -111,13 +138,20 @@ src/lib/admin.ts          Admin emails + credentials-admin settings
 src/lib/anthropic.ts      Claude client + finalize system prompt
 src/lib/stats.ts          Sample-size formulas (normal approximation)
 src/lib/steps.ts          Dropdown-driven wizard step definitions
+src/lib/visits.ts         Visit labels, money/slot helpers (client + server)
+src/lib/visit-access.ts   Visit API auth/party helpers (server only)
 src/app/signin            Sign-in page (OAuth + admin login)
 src/app/admin             Administrator dashboard
 src/app/api/admin/users   Admin user management API
 src/app/api/finalize      Final AI review/finalization endpoint
 src/app/api/sample-size   Sample-size calculation endpoint
 src/app/api/plans         Save / load / delete plans (per user)
+src/app/api/visits        Create / accept / decline / book / cancel visits
+src/app/api/doctor        Doctor profile + standing-availability slots
+src/app/visits            Visit hub, request form, and per-visit detail
+src/app/doctor            Doctor mode: profile + availability management
 src/components/Wizard.tsx  The step wizard + final review (client)
+src/components/VisitDetail.tsx  Per-visit actions: accept / book / cancel
 ```
 
 > SciPlan is an educational aid, not a substitute for a supervisor,
