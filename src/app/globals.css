@@ -7,9 +7,97 @@
 }
 
 body {
-  @apply bg-slate-50 text-slate-800 antialiased;
+  @apply text-slate-800 antialiased;
+  background-color: #f7f6f1;
+  /* Squared lab-notebook paper. Cards sit on top in solid white, so the grid
+     only shows through the gutters. */
+  background-image:
+    linear-gradient(to right, rgb(25 24 19 / 0.038) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(25 24 19 / 0.038) 1px, transparent 1px);
+  background-size: 27px 27px;
+  background-position: -1px -1px;
+}
+
+::selection {
+  background: #e6f58c;
+  color: #191813;
+}
+
+@layer components {
+  /* Mono, upper-case micro-label. The typographic signature of the app. */
+  .eyebrow {
+    @apply font-mono text-[10px] uppercase tracking-label text-slate-500;
+  }
+
+  .card {
+    @apply border border-slate-200 bg-white shadow-sm;
+  }
+
+  /* Highlighter mark, for anything the AI drafted. */
+  .mark {
+    background-image: linear-gradient(
+      to bottom,
+      transparent 55%,
+      #e6f58c 55%
+    );
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-sm border px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .btn-primary {
+    @apply border-brand-700 bg-brand-700 text-white shadow-sm hover:bg-brand-900 hover:shadow;
+  }
+  .btn-secondary {
+    @apply border-slate-300 bg-white text-slate-700 hover:border-brand-700 hover:text-brand-800;
+  }
+  .btn-quiet {
+    @apply border-transparent bg-transparent text-slate-500 hover:text-brand-800;
+  }
+  .btn-xs {
+    @apply gap-1.5 px-2 py-1 text-[11px];
+  }
+
+  .field {
+    @apply w-full rounded-sm border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 transition placeholder:text-slate-400 focus:border-brand-700 focus:outline-none focus:ring-2 focus:ring-citron-200 disabled:bg-slate-50 disabled:text-slate-500;
+  }
+
+  .field-label {
+    @apply block text-sm font-medium text-slate-800;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium;
+  }
 }
 
 .prose-ai {
   @apply whitespace-pre-wrap text-sm leading-relaxed text-slate-700;
+}
+
+/* Printing: used by the protocol view, which students hand to a supervisor or
+   an ethics board. Everything except the marked region is hidden. */
+@media print {
+  body {
+    background: #fff;
+    background-image: none;
+  }
+  body * {
+    visibility: hidden;
+  }
+  .print-region,
+  .print-region * {
+    visibility: visible;
+  }
+  .print-region {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    border: 0;
+    box-shadow: none;
+  }
+  .print-hide {
+    display: none !important;
+  }
 }

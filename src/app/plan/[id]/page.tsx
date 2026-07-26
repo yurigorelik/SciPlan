@@ -29,15 +29,14 @@ export default async function PlanPage({
 
   if (!plan || (!isOwner && !isAdmin)) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
-        <h1 className="text-lg font-semibold text-slate-900">Plan not available</h1>
+      <div className="card p-10 text-center">
+        <h1 className="font-display text-xl font-semibold text-slate-900">
+          Plan not available
+        </h1>
         <p className="mt-2 text-sm text-slate-600">
           This plan doesn&apos;t exist, or you don&apos;t have access to it.
         </p>
-        <Link
-          href="/"
-          className="mt-4 inline-block rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-        >
+        <Link href="/" className="btn btn-primary mt-5">
           Back to my plans
         </Link>
       </div>
