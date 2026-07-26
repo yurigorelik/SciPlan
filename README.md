@@ -2,7 +2,8 @@
 
 An interactive website that teaches and enables students to plan research —
 step by step, from the research question through to the statistical analysis
-plan — with a final AI review (Anthropic Claude) and built-in calculators.
+plan — with a final AI review (Anthropic Claude), a generated study protocol,
+and built-in calculators.
 
 Sign-in is required to use the site (Google, Microsoft, or the built-in admin
 account). Administrators get a dashboard to manage users.
@@ -10,7 +11,9 @@ account). Administrators get a dashboard to manage users.
 ## The six steps
 
 The wizard is mostly **dropdown-driven** — students choose from sound, named
-options rather than writing free text:
+options rather than writing free text. Nothing in it is mandatory: every
+question can be answered, drafted by the AI, or removed, and whole sections can
+be skipped (see **Making the wizard your own** below).
 
 1. **Research question** — discipline, question type, PICO building blocks, and
    hypothesis framing.
@@ -25,12 +28,41 @@ options rather than writing free text:
 6. **Statistical methods** — primary test, confounder handling, missing-data
    strategy, multiplicity control, and software.
 
+### Making the wizard your own
+
+The six sections are a starting point, not a fixed form:
+
+- **Draft with AI** — every question has a *Draft* action that fills just that
+  answer from the rest of the plan, and each section has a *Draft the N
+  unanswered* action that answers its remaining questions in one consistent
+  pass. Drafts are marked in the interface until the student accepts or undoes
+  them, and for dropdowns the model can only pick options the wizard actually
+  offers.
+- **Remove a question** — anything irrelevant can be removed. Removed questions
+  keep their answers (restoring is lossless), drop out of the progress count,
+  and are named to the AI as deliberate omissions so the review doesn't flag
+  them as gaps.
+- **Skip a section** — the same, for a whole step.
+- **Add your own question** — students can append their own short-answer or
+  paragraph questions to any section; they are stored with the plan and sent to
+  the AI like any other answer.
+
 ### Final AI review
 
 The student never chats with the AI. After completing the steps, they submit on
 the **Review & finalize** step and the site passes every selected option and
 note to Claude, which **reviews the choices, corrects anything inconsistent, and
 returns a finalized study with a summary**.
+
+### Generated protocol
+
+Once the review is finished, **Generate the protocol** turns the finalized study
+into the full protocol document a supervisor or ethics committee expects:
+background and rationale, objectives, design, eligibility criteria, variables
+and measurement, sample size with its full calculation narrative, the
+statistical analysis plan, data management, ethics, limitations, timeline, and a
+checklist of what is still outstanding. It runs in the background like the
+review, and can be copied, downloaded as Markdown, or printed to PDF.
 
 The **sample-size calculator** now supports comparing two means/proportions,
 paired means, one mean/proportion vs a reference, correlation, ANOVA, precision
@@ -46,6 +78,16 @@ estimates, and dropout inflation. Plans are saved to Postgres per user.
   delete (single or all), and view any user's plans and summaries read-only.
 - **Blocked users** can still sign in and view plans they already created, but
   cannot create, edit, or finalize new plans.
+
+## Design
+
+SciPlan is styled as a **lab notebook rather than a dashboard**: bone paper with
+a faint printed grid, near-black ink, hairline rules, hard offset shadows, an
+editorial serif for headings, monospaced micro-labels, and a single citron
+highlighter used for progress, marks, and anything the AI drafted. The palette,
+radii, shadows, and type stacks are defined once in `tailwind.config.ts` (the
+stock Tailwind `slate`/`brand`/`emerald`/`red`/`amber` scales are redefined
+there), with shared component classes in `src/app/globals.css`.
 
 ## Tech stack
 
@@ -114,7 +156,9 @@ src/lib/steps.ts          Dropdown-driven wizard step definitions
 src/app/signin            Sign-in page (OAuth + admin login)
 src/app/admin             Administrator dashboard
 src/app/api/admin/users   Admin user management API
-src/app/api/finalize      Final AI review/finalization endpoint
+src/app/api/plans/[id]/finalize   Final AI review/finalization endpoint
+src/app/api/plans/[id]/protocol   Full study-protocol generation
+src/app/api/ai/fill       Draft one answer, or a whole section
 src/app/api/sample-size   Sample-size calculation endpoint
 src/app/api/plans         Save / load / delete plans (per user)
 src/components/Wizard.tsx  The step wizard + final review (client)

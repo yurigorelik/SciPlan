@@ -9,6 +9,7 @@ export interface PlanSummary {
   title: string;
   updatedAt: string;
   finalizeStatus?: string;
+  hasProtocol?: boolean;
 }
 
 export default function PlanCard({
@@ -37,30 +38,37 @@ export default function PlanCard({
   }
 
   return (
-    <div className="group relative">
+    <div className="group relative h-full">
       <Link
         href={`/plan/${plan.id}`}
-        className="block rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-400 hover:shadow"
+        className="flex h-full flex-col border border-slate-300 bg-white p-4 transition hover:-translate-x-0.5 hover:-translate-y-0.5 hover:border-brand-700 hover:shadow-md"
       >
-        <p className="pr-7 font-medium text-slate-900">{plan.title}</p>
-        <div className="mt-1.5 flex items-center gap-2">
-          <p className="text-xs text-slate-400">
-            Updated {new Date(plan.updatedAt).toLocaleDateString()}
-          </p>
+        <p className="pr-7 font-display text-base font-semibold leading-snug text-slate-900">
+          {plan.title}
+        </p>
+        <span className="mt-auto pt-3 font-mono text-[10px] uppercase tracking-label text-slate-400">
+          Updated {new Date(plan.updatedAt).toLocaleDateString()}
+        </span>
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
           {plan.finalizeStatus === "processing" && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
-              Finalizing…
+            <span className="chip border-emerald-300 bg-emerald-50 text-emerald-800">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-600" />
+              Reviewing
             </span>
           )}
           {plan.finalizeStatus === "done" && (
-            <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-medium text-brand-700">
+            <span className="chip border-emerald-300 bg-emerald-50 text-emerald-800">
               ✓ Finalized
             </span>
           )}
           {plan.finalizeStatus === "error" && (
-            <span className="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-700">
+            <span className="chip border-red-300 bg-red-50 text-red-700">
               Review failed
+            </span>
+          )}
+          {plan.hasProtocol && (
+            <span className="chip border-citron-400 bg-citron-100 text-citron-900">
+              Protocol
             </span>
           )}
         </div>
@@ -71,7 +79,7 @@ export default function PlanCard({
           disabled={busy}
           title="Delete plan"
           aria-label={`Delete ${plan.title}`}
-          className="absolute right-2.5 top-2.5 grid h-7 w-7 place-items-center rounded-md text-slate-300 opacity-0 transition hover:bg-red-50 hover:text-red-600 focus:opacity-100 group-hover:opacity-100 disabled:opacity-50"
+          className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-sm text-slate-300 opacity-0 transition hover:bg-red-50 hover:text-red-700 focus:opacity-100 group-hover:opacity-100 disabled:opacity-50"
         >
           <svg viewBox="0 0 16 16" fill="none" className="h-4 w-4" aria-hidden>
             <path

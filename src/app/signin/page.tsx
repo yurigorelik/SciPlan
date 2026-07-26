@@ -41,14 +41,22 @@ export default async function SignInPage({
 
   return (
     <div className="mx-auto max-w-md py-8">
-      <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-md">
-        <span className="mb-4 grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-sm font-semibold text-white shadow-sm">
-          Sci
+      <div className="card p-8 shadow-lg">
+        <span className="relative mb-5 grid h-10 w-10 place-items-center bg-brand-700 font-display text-lg font-semibold text-white">
+          S
+          <span
+            aria-hidden
+            className="absolute -bottom-0.5 -right-0.5 h-3 w-3 bg-citron-300"
+          />
         </span>
-        <h1 className="text-2xl font-bold text-slate-900">Sign in to SciPlan</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Plan a sound study step by step, with a final AI review. SciPlan is
-          available to signed-in users only.
+        <p className="eyebrow">Sign in</p>
+        <h1 className="mt-1 font-display text-3xl font-semibold text-slate-900">
+          Plan your study.
+        </h1>
+        <p className="mt-2 text-sm leading-relaxed text-slate-600">
+          Six sections from research question to analysis plan, a final AI
+          review, and a full protocol document. SciPlan is available to
+          signed-in users only.
         </p>
 
         {(oauthEnabled.google || oauthEnabled.microsoft) && (
@@ -57,7 +65,7 @@ export default async function SignInPage({
               <form action={googleSignIn}>
                 <button
                   type="submit"
-                  className="flex w-full items-center justify-center gap-3 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  className="btn btn-secondary w-full py-2.5"
                 >
                   <GoogleIcon />
                   Continue with Google
@@ -68,7 +76,7 @@ export default async function SignInPage({
               <form action={microsoftSignIn}>
                 <button
                   type="submit"
-                  className="flex w-full items-center justify-center gap-3 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  className="btn btn-secondary w-full py-2.5"
                 >
                   <MicrosoftIcon />
                   Continue with Microsoft
@@ -79,48 +87,45 @@ export default async function SignInPage({
         )}
 
         {(oauthEnabled.google || oauthEnabled.microsoft) && (
-          <div className="my-6 flex items-center gap-3 text-xs text-slate-400">
-            <span className="h-px flex-1 bg-slate-200" />
-            or sign in with a username
-            <span className="h-px flex-1 bg-slate-200" />
+          <div className="my-6 flex items-center gap-3 font-mono text-[10px] uppercase tracking-label text-slate-400">
+            <span className="h-px flex-1 bg-slate-300" />
+            or use a username
+            <span className="h-px flex-1 bg-slate-300" />
           </div>
         )}
 
         <form action={credentialsSignIn} className="mt-6 space-y-3">
           {error && (
-            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+            <p className="border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
               Incorrect username or password.
             </p>
           )}
-          <label className="block text-sm">
-            <span className="font-medium text-slate-700">Username</span>
+          <label className="block">
+            <span className="eyebrow">Username</span>
             <input
               name="username"
               type="text"
               autoComplete="username"
               required
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
+              className="field mt-1"
             />
           </label>
-          <label className="block text-sm">
-            <span className="font-medium text-slate-700">Password</span>
+          <label className="block">
+            <span className="eyebrow">Password</span>
             <input
               name="password"
               type="password"
               autoComplete="current-password"
               required
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
+              className="field mt-1"
             />
           </label>
-          <button
-            type="submit"
-            className="w-full rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-700"
-          >
+          <button type="submit" className="btn btn-primary w-full py-2.5">
             Sign in
           </button>
         </form>
       </div>
-      <p className="mt-4 text-center text-xs text-slate-400">
+      <p className="mt-4 text-center text-xs leading-relaxed text-slate-500">
         By signing in you agree that SciPlan is an educational aid, not a
         substitute for a supervisor, statistician, or ethics board.
       </p>

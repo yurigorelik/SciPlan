@@ -514,42 +514,149 @@ export type FieldValue = string | string[];
 
 export type FinalizeStatus = "idle" | "processing" | "done" | "error";
 
+/**
+ * A question the student added themselves. Custom questions live alongside the
+ * built-in ones in a step and are stored with the plan, so the wizard is a
+ * starting point rather than a fixed form.
+ */
+export interface CustomFieldDef {
+  key: string; // always prefixed "custom:" so it can't collide with a built-in
+  label: string;
+  type: "text" | "textarea";
+}
+
 export type PlanData = {
   title: string;
   // stepId -> fieldKey -> value (string or, for multiselect, string[])
   answers: Record<string, Record<string, FieldValue>>;
+  // stepId -> keys of questions the student removed from their plan. Removed
+  // questions keep their answers (so restoring is lossless) but are excluded
+  // from progress and from everything sent to the AI.
+  removed?: Record<string, string[]>;
+  // Ids of whole sections the student chose to skip.
+  skippedSteps?: string[];
+  // stepId -> questions the student added themselves.
+  customFields?: Record<string, CustomFieldDef[]>;
   // The AI-finalized study + summary, produced in the background at review.
   summary?: string;
   finalizedAt?: string;
   // Tracks the background finalization job.
   finalizeStatus?: FinalizeStatus;
   finalizeError?: string;
+  // The full study protocol, generated on request after the AI review.
+  protocol?: string;
+  protocolAt?: string;
+  protocolStatus?: FinalizeStatus;
+  protocolError?: string;
 };
 
 export function emptyPlan(): PlanData {
   return { title: "Untitled research plan", answers: {} };
 }
 
-/** How many fields of a step are filled in (used for progress indicators). */
+/**
+ * Read a plan out of the database's JSON column, which Prisma types loosely.
+ * Guarantees the fields the rest of the app assumes are present.
+ */
+export function asPlanData(value: unknown): PlanData {
+  const v = (value && typeof value === "object" ? value : {}) as Partial<PlanData>;
+  return { ...emptyPlan(), ...v };
+}
+
+/** Is this whole section skipped? */
+export function isStepSkipped(data: PlanData, stepId: string): boolean {
+  return (data.skippedSteps ?? []).includes(stepId);
+}
+
+/** Is this individual question removed from the plan? */
+export function isFieldRemoved(
+  data: PlanData,
+  stepId: string,
+  key: string,
+): boolean {
+  return (data.removed?.[stepId] ?? []).includes(key);
+}
+
+/** Every question in a step — built-in plus custom — including removed ones. */
+export function allFields(data: PlanData, step: StepDef): FieldDef[] {
+  const custom = (data.customFields?.[step.id] ?? []).map(
+    (c): FieldDef => ({ key: c.key, label: c.label, type: c.type, rows: 3 }),
+  );
+  return [...step.fields, ...custom];
+}
+
+/** The questions actually in play: not removed, in a section that isn't skipped. */
+export function visibleFields(data: PlanData, step: StepDef): FieldDef[] {
+  const removed = data.removed?.[step.id] ?? [];
+  return allFields(data, step).filter((f) => !removed.includes(f.key));
+}
+
+/** The sections the student is actually filling in. */
+export function activeSteps(data: PlanData): StepDef[] {
+  return STEPS.filter((s) => !isStepSkipped(data, s.id));
+}
+
+/** Look up one question by key, including custom ones. */
+export function findField(
+  data: PlanData,
+  stepId: string,
+  key: string,
+): FieldDef | undefined {
+  const step = STEPS.find((s) => s.id === stepId);
+  if (!step) return undefined;
+  return allFields(data, step).find((f) => f.key === key);
+}
+
+export function hasValue(v: FieldValue | undefined): boolean {
+  return Array.isArray(v) ? v.length > 0 : !!(v ?? "").trim();
+}
+
+/** How many questions of a step are filled in (used for progress indicators). */
 export function stepProgress(
   data: PlanData,
   step: StepDef,
 ): { filled: number; total: number } {
   const answers = data.answers[step.id] || {};
+  const fields = visibleFields(data, step);
   let filled = 0;
-  for (const f of step.fields) {
-    const v = answers[f.key];
-    if (Array.isArray(v) ? v.length > 0 : (v ?? "").trim()) filled++;
-  }
-  return { filled, total: step.fields.length };
+  for (const f of fields) if (hasValue(answers[f.key])) filled++;
+  return { filled, total: fields.length };
 }
 
-/** Render the whole plan as readable text for the AI review. */
+/** Overall completion across every section the student hasn't skipped. */
+export function planProgress(data: PlanData): {
+  filled: number;
+  total: number;
+  pct: number;
+} {
+  let filled = 0;
+  let total = 0;
+  for (const s of activeSteps(data)) {
+    const p = stepProgress(data, s);
+    filled += p.filled;
+    total += p.total;
+  }
+  return { filled, total, pct: total ? Math.round((filled / total) * 100) : 0 };
+}
+
+/**
+ * Render the whole plan as readable text for the AI.
+ *
+ * Skipped sections and removed questions are left out, but they are named at
+ * the end so the AI treats them as deliberate choices rather than gaps to
+ * complain about.
+ */
 export function buildPlanText(data: PlanData): string {
   const lines: string[] = [`Working title: ${data.title}`];
+  const omitted: string[] = [];
+
   for (const step of STEPS) {
+    if (isStepSkipped(data, step.id)) {
+      omitted.push(`the whole "${step.title}" section`);
+      continue;
+    }
     const answers = data.answers[step.id] || {};
-    const filled = step.fields
+    const filled = visibleFields(data, step)
       .map((f) => {
         const raw = answers[f.key];
         const value = Array.isArray(raw) ? raw.join(", ") : (raw ?? "").trim();
@@ -560,6 +667,19 @@ export function buildPlanText(data: PlanData): string {
       lines.push(`\n${step.title}:`);
       lines.push(...filled);
     }
+    for (const f of step.fields) {
+      if (isFieldRemoved(data, step.id, f.key)) {
+        omitted.push(`"${f.label}" (${step.title})`);
+      }
+    }
   }
+
+  if (omitted.length) {
+    lines.push(
+      "\nThe student deliberately removed the following from their plan, so treat them as out of scope rather than as omissions to flag:",
+    );
+    for (const o of omitted) lines.push(`  - ${o}`);
+  }
+
   return lines.join("\n");
 }

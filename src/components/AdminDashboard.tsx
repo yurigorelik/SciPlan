@@ -142,13 +142,13 @@ export default function AdminDashboard({
       </div>
 
       {/* Tabs */}
-      <div className="mb-5 flex w-fit gap-1 rounded-xl bg-slate-100 p-1">
+      <div className="mb-5 flex w-fit gap-px border border-slate-300 bg-slate-300">
         <TabButton active={tab === "users"} onClick={() => setTab("users")}>
           Users
         </TabButton>
         <TabButton active={tab === "research"} onClick={() => setTab("research")}>
           Submitted research
-          <span className="ml-1.5 rounded-full bg-white/70 px-1.5 text-xs text-slate-500">
+          <span className="ml-1.5 border border-current/20 px-1.5 font-mono text-[10px]">
             {research.length}
           </span>
         </TabButton>
@@ -160,30 +160,30 @@ export default function AdminDashboard({
             <button
               onClick={() => bulk("blockAll")}
               disabled={busy !== null || regularUsers.length === 0}
-              className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+              className="btn btn-xs border-amber-300 bg-amber-50 px-3 py-1.5 text-sm text-amber-800 hover:bg-amber-100"
             >
               Block all users
             </button>
             <button
               onClick={() => bulk("unblockAll")}
               disabled={busy !== null || regularUsers.length === 0}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              className="btn btn-secondary btn-xs px-3 py-1.5 text-sm"
             >
               Unblock all
             </button>
             <button
               onClick={() => bulk("deleteAll")}
               disabled={busy !== null || regularUsers.length === 0}
-              className="rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
+              className="btn btn-xs border-red-300 bg-red-50 px-3 py-1.5 text-sm text-red-700 hover:bg-red-100"
             >
               Delete all users
             </button>
             {msg && <span className="text-sm text-slate-500">{msg}</span>}
           </div>
 
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="card overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+              <thead className="bg-slate-50 text-left font-mono text-[10px] uppercase tracking-label text-slate-500">
                 <tr>
                   <th className="px-4 py-3">User</th>
                   <th className="px-4 py-3">Role</th>
@@ -240,11 +240,11 @@ function StatCard({
     emerald: "text-emerald-600",
   };
   return (
-    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+    <div className="card px-4 py-3">
+      <p className="eyebrow">
         {label}
       </p>
-      <p className={`mt-1 text-2xl font-bold ${tones[tone]}`}>{value}</p>
+      <p className={`mt-1 font-mono text-2xl font-semibold ${tones[tone]}`}>{value}</p>
     </div>
   );
 }
@@ -261,10 +261,10 @@ function TabButton({
   return (
     <button
       onClick={onClick}
-      className={`flex items-center rounded-lg px-4 py-1.5 text-sm font-medium transition ${
+      className={`flex items-center px-4 py-2 font-mono text-[11px] uppercase tracking-label transition ${
         active
-          ? "bg-white text-slate-900 shadow-sm"
-          : "text-slate-500 hover:text-slate-700"
+          ? "bg-brand-700 text-white"
+          : "bg-white text-slate-500 hover:bg-citron-50 hover:text-slate-800"
       }`}
     >
       {children}
@@ -308,12 +308,12 @@ function ResearchTable({ research }: { research: AdminResearch[] }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search by title or user…"
-          className="w-64 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+          className="field w-64 py-1.5"
         />
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as "all" | ResearchStatus)}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none"
+          className="field w-auto py-1.5"
         >
           <option value="all">All statuses</option>
           <option value="done">Finalized</option>
@@ -326,9 +326,9 @@ function ResearchTable({ research }: { research: AdminResearch[] }) {
         </span>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="card overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+          <thead className="bg-slate-50 text-left font-mono text-[10px] uppercase tracking-label text-slate-500">
             <tr>
               <th className="px-4 py-3">Research plan</th>
               <th className="px-4 py-3">User</th>
@@ -421,7 +421,7 @@ function ResearchRow({
       {isOpen && r.summary && (
         <tr>
           <td colSpan={5} className="bg-slate-50 px-6 py-4">
-            <div className="max-h-96 overflow-y-auto rounded-lg border border-slate-200 bg-white p-5">
+            <div className="max-h-96 overflow-y-auto border border-slate-200 bg-white p-5">
               <Markdown>{r.summary}</Markdown>
             </div>
           </td>

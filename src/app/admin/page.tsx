@@ -88,9 +88,12 @@ export default async function AdminPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Administrator dashboard</h1>
-        <p className="mt-1 text-sm text-slate-600">
+      <div className="mb-8 border-b-2 border-brand-700 pb-5">
+        <p className="eyebrow">Administration</p>
+        <h1 className="mt-1 font-display text-3xl font-semibold text-slate-900">
+          Users &amp; submitted research
+        </h1>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
           Manage users — block, unblock, or delete them (single or all) — and
           review every submitted research plan and its finalized summary.
         </p>

@@ -44,14 +44,16 @@ function Field({
   step?: string;
 }) {
   return (
-    <label className="block text-sm">
-      <span className="text-slate-600">{label}</span>
+    <label className="block">
+      <span className="font-mono text-[10px] uppercase leading-tight tracking-wide text-slate-500">
+        {label}
+      </span>
       <input
         type="number"
         step={step}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:border-brand-500 focus:outline-none"
+        className="field mt-1 px-2 py-1.5 font-mono"
       />
     </label>
   );
@@ -97,18 +99,23 @@ export default function SampleSizeCalculator({
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <h3 className="mb-3 font-semibold text-slate-900">Sample-size calculator</h3>
+    <div className="card sticky top-24 p-4">
+      <p className="eyebrow">Tool</p>
+      <h3 className="mb-3 mt-0.5 font-display text-lg font-semibold text-slate-900">
+        Sample-size calculator
+      </h3>
 
-      <label className="block text-sm">
-        <span className="text-slate-600">Goal</span>
+      <label className="block">
+        <span className="font-mono text-[10px] uppercase leading-tight tracking-wide text-slate-500">
+          Goal
+        </span>
         <select
           value={type}
           onChange={(e) => {
             setType(e.target.value as CalcType);
             setResult(null);
           }}
-          className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:border-brand-500 focus:outline-none"
+          className="field mt-1 px-2 py-1.5"
         >
           {Object.entries(CALC_LABELS).map(([k, label]) => (
             <option key={k} value={k}>
@@ -244,23 +251,23 @@ export default function SampleSizeCalculator({
       <button
         onClick={calculate}
         disabled={loading}
-        className="mt-4 w-full rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+        className="btn btn-primary mt-4 w-full"
       >
         {loading ? "Calculating…" : "Calculate"}
       </button>
 
       {error && (
-        <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p className="mt-3 border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
           {error}
         </p>
       )}
 
       {result && (
-        <div className="mt-4 rounded-lg bg-brand-50 p-3 text-sm">
-          <p className="text-lg font-semibold text-brand-800">
+        <div className="mt-4 border-l-2 border-citron-400 bg-citron-50 p-3 text-sm">
+          <p className="font-mono text-xl font-semibold text-slate-900">
             {result.perGroup === result.total
               ? `N = ${result.total}`
-              : `${result.perGroup} per group · ${result.total} total`}
+              : `${result.perGroup} / group · ${result.total} total`}
           </p>
           <ul className="mt-2 list-inside list-disc space-y-1 text-slate-600">
             {result.notes.map((n, i) => (
@@ -274,7 +281,7 @@ export default function SampleSizeCalculator({
                   `${result.perGroup === result.total ? `N = ${result.total}` : `${result.perGroup} per group, ${result.total} total`}\n${result.notes.join("\n")}`,
                 )
               }
-              className="mt-3 rounded-md border border-brand-300 bg-white px-3 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-50"
+              className="btn btn-secondary btn-xs mt-3"
             >
               Copy into the plan ↑
             </button>

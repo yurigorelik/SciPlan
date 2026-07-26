@@ -2,15 +2,15 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
-import { getAnthropic, MODEL, FINALIZE_SYSTEM_PROMPT } from "@/lib/anthropic";
+import { getAnthropic, MODEL, PROTOCOL_SYSTEM_PROMPT } from "@/lib/anthropic";
 import { asPlanData, buildPlanText, type PlanData } from "@/lib/steps";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-// Kick off the AI review/finalization for a plan in the background. Returns
-// immediately with status "processing"; the AI result is written back to the
-// plan when it completes, so the user can leave the page.
+// Generate the full study protocol from the plan plus the AI-finalized review.
+// Like the review itself this runs in the background: the document is long, and
+// the student shouldn't have to keep the tab open.
 export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -42,66 +42,75 @@ export async function POST(
   const client = getAnthropic();
   if (!client) {
     return NextResponse.json(
-      { error: "AI review is not configured (missing ANTHROPIC_API_KEY)." },
+      { error: "Protocol generation is not configured (missing ANTHROPIC_API_KEY)." },
       { status: 503 },
     );
   }
 
   const data = asPlanData(plan.data);
-  const planText = buildPlanText({ ...data, title: plan.title });
+  if (!data.summary) {
+    return NextResponse.json(
+      { error: "Run the AI review first — the protocol is written from it." },
+      { status: 400 },
+    );
+  }
 
-  // Mark the plan as processing right away.
+  const planText = buildPlanText({ ...data, title: plan.title });
+  const review = data.summary;
+
   const processingData: PlanData = {
     ...data,
     title: plan.title,
-    finalizeStatus: "processing",
-    finalizeError: undefined,
+    protocolStatus: "processing",
+    protocolError: undefined,
   };
   await prisma.plan.update({
     where: { id },
     data: { data: processingData as unknown as Prisma.InputJsonValue },
   });
 
-  // Run the AI call after the response is sent. Railway runs a persistent
-  // Node server, so this completes even though the client isn't waiting.
   after(async () => {
     try {
       const userPrompt = [
-        "Here is the student's completed study plan (their selections and notes):",
+        "The student's study plan (their selections and notes):",
         "",
         planText,
         "",
-        "Review and finalize it as instructed.",
+        "The finalized review of that plan, which supersedes the selections wherever it corrected them:",
+        "",
+        review,
+        "",
+        "Write the full study protocol as instructed.",
       ].join("\n");
 
       const msg = await client.messages.create({
         model: MODEL,
-        max_tokens: 4000,
+        max_tokens: 16000,
         thinking: { type: "adaptive" },
         system: [
           {
             type: "text",
-            text: FINALIZE_SYSTEM_PROMPT,
+            text: PROTOCOL_SYSTEM_PROMPT,
             cache_control: { type: "ephemeral" },
           },
         ],
         messages: [{ role: "user", content: userPrompt }],
       });
 
-      const summary = msg.content
+      const protocol = msg.content
         .map((b) => (b.type === "text" ? b.text : ""))
         .join("")
         .trim();
 
-      // Re-read to avoid clobbering edits made while the AI was running.
+      // Re-read so we don't clobber edits made while the AI was writing.
       const fresh = await prisma.plan.findUnique({ where: { id } });
       const freshData = fresh ? asPlanData(fresh.data) : processingData;
       const doneData: PlanData = {
         ...freshData,
-        summary,
-        finalizedAt: new Date().toISOString(),
-        finalizeStatus: "done",
-        finalizeError: undefined,
+        protocol,
+        protocolAt: new Date().toISOString(),
+        protocolStatus: "done",
+        protocolError: undefined,
       };
       await prisma.plan.update({
         where: { id },
@@ -109,8 +118,10 @@ export async function POST(
       });
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "The AI review failed.";
-      const fresh = await prisma.plan.findUnique({ where: { id } }).catch(() => null);
+        err instanceof Error ? err.message : "The protocol could not be generated.";
+      const fresh = await prisma.plan
+        .findUnique({ where: { id } })
+        .catch(() => null);
       const freshData = fresh ? asPlanData(fresh.data) : processingData;
       await prisma.plan
         .update({
@@ -118,8 +129,8 @@ export async function POST(
           data: {
             data: {
               ...freshData,
-              finalizeStatus: "error",
-              finalizeError: message,
+              protocolStatus: "error",
+              protocolError: message,
             } as unknown as Prisma.InputJsonValue,
           },
         })
